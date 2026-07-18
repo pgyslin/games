@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Novamon — RPG 2D-HD</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #10141c;
+    font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif; user-select: none; }
+  #game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* ---------- Panneaux génériques ---------- */
+  .panel {
+    background: rgba(18, 24, 34, .92);
+    border: 2px solid rgba(255, 255, 255, .18);
+    border-radius: 14px;
+    color: #f2f5fa;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+    backdrop-filter: blur(4px);
+  }
+  button {
+    font-family: inherit; font-size: 15px; font-weight: 700; color: #f2f5fa;
+    background: linear-gradient(180deg, #3a4a66, #2a3548);
+    border: 2px solid rgba(255, 255, 255, .22);
+    border-radius: 10px; padding: 9px 14px; cursor: pointer;
+    transition: transform .08s, filter .08s;
+  }
+  button:hover { filter: brightness(1.2); }
+  button:active { transform: scale(.96); }
+  button.primary { background: linear-gradient(180deg, #4a8ee0, #2f66b0); }
+  button.danger  { background: linear-gradient(180deg, #d05a4a, #a03428); }
+
+  /* ---------- HUD ---------- */
+  #hud {
+    position: absolute; top: 10px; left: 10px; padding: 8px 12px;
+    display: flex; align-items: center; gap: 10px; z-index: 5;
+  }
+  #hud canvas { image-rendering: auto; }
+  #hudinfo { font-size: 13px; line-height: 1.45; }
+  #hudinfo b { font-size: 14px; }
+  .minibar { width: 110px; height: 8px; border-radius: 4px; background: #1c2430;
+    border: 1px solid rgba(255,255,255,.25); overflow: hidden; }
+  .minibar > div { height: 100%; border-radius: 4px; background: linear-gradient(180deg,#6ee06e,#3aa83a);
+    transition: width .35s; }
+  .minibar > div.mid  { background: linear-gradient(180deg,#f0c83c,#c89a1e); }
+  .minibar > div.low  { background: linear-gradient(180deg,#f0653c,#c03a1e); }
+  #hudbtns { position: absolute; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 5; }
+  #hudbtns button { font-size: 13px; padding: 8px 11px; }
+
+  /* ---------- Boîte de dialogue ---------- */
+  #dialog {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    bottom: 14px; width: min(720px, 94vw); min-height: 86px;
+    padding: 12px 18px 14px; z-index: 20; display: none; cursor: pointer;
+  }
+  #dlgname { color: #8fd0ff; font-weight: 800; font-size: 13px; margin-bottom: 3px;
+    text-transform: uppercase; letter-spacing: .5px; }
+  #dlgtext { font-size: 17px; line-height: 1.45; }
+  #dlgnext { position: absolute; right: 14px; bottom: 8px; font-size: 15px; color: #8fd0ff;
+    animation: bounce 1s infinite; }
+  @keyframes bounce { 0%,100% { transform: translateY(0) } 50% { transform: translateY(4px) } }
+
+  /* ---------- Combat ---------- */
+  .moncard {
+    position: absolute; z-index: 10; padding: 8px 14px; min-width: 200px; display: none;
+  }
+  .moncard .mname { font-weight: 800; font-size: 15px; }
+  .moncard .mlv { color: #ffd98a; font-size: 13px; margin-left: 6px; }
+  .moncard .hpline { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .moncard .hpline span { font-size: 11px; color: #9fb0c4; }
+  .bar { width: 140px; height: 10px; border-radius: 5px; background: #1c2430;
+    border: 1px solid rgba(255,255,255,.3); overflow: hidden; }
+  .bar > div { height: 100%; background: linear-gradient(180deg,#6ee06e,#3aa83a); transition: width .4s; }
+  .bar > div.mid { background: linear-gradient(180deg,#f0c83c,#c89a1e); }
+  .bar > div.low { background: linear-gradient(180deg,#f0653c,#c03a1e); }
+  .xpbar { width: 140px; height: 5px; border-radius: 3px; background: #1c2430; margin-top: 4px; overflow: hidden; }
+  .xpbar > div { height: 100%; background: #4a9ee8; transition: width .4s; }
+  .hpnum { font-size: 12px; color: #cfe0f2; margin-top: 2px; }
+  #enemycard { top: 16px; left: 16px; }
+  #allycard  { bottom: 118px; right: 16px; }
+
+  #bmenu {
+    position: absolute; right: 14px; bottom: 14px; z-index: 20; display: none;
+    padding: 10px; width: min(360px, 92vw);
+  }
+  #bmenu .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #bmenu button { width: 100%; }
+  #bmenu .movebtn { text-align: left; position: relative; padding-right: 52px; }
+  #bmenu .movebtn small { position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+    font-size: 11px; opacity: .85; }
+  #bmenu .tag { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 8px;
+    margin-left: 6px; color: #fff; vertical-align: 2px; }
+  #bmenu h3 { font-size: 13px; color: #9fb0c4; margin: 2px 2px 8px; }
+
+  /* ---------- Modales ---------- */
+  #modalwrap {
+    position: absolute; inset: 0; z-index: 40; display: none;
+    background: rgba(8, 10, 16, .55); align-items: center; justify-content: center;
+  }
+  #modal { width: min(640px, 94vw); max-height: 86vh; overflow: auto; padding: 18px; }
+  #modal h2 { font-size: 19px; margin-bottom: 12px; color: #ffd98a; }
+  .teamrow { display: flex; align-items: center; gap: 12px; padding: 8px 10px;
+    border-radius: 10px; background: rgba(255,255,255,.06); margin-bottom: 8px; }
+  .teamrow .tinfo { flex: 1; font-size: 14px; line-height: 1.4; }
+  .teamrow button { font-size: 12px; padding: 6px 10px; }
+  .dexgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 10px; }
+  .dexcell { background: rgba(255,255,255,.06); border-radius: 10px; padding: 8px 6px;
+    text-align: center; font-size: 12px; }
+  .dexcell .dexname { font-weight: 700; margin-top: 2px; }
+  .dexcell .dexdesc { font-size: 10px; color: #9fb0c4; margin-top: 3px; line-height: 1.35; }
+  .typetag { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 7px;
+    color: #fff; margin: 2px 1px 0; }
+  .starters { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .startercell { background: rgba(255,255,255,.07); border: 2px solid transparent; border-radius: 14px;
+    padding: 12px; text-align: center; cursor: pointer; transition: border .12s, transform .12s; }
+  .startercell:hover { border-color: #8fd0ff; transform: translateY(-3px); }
+  .startercell .sname { font-weight: 800; margin-top: 6px; }
+  .itemrow { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,.06); margin-bottom: 8px;
+    font-size: 14px; }
+  .itemrow small { color: #9fb0c4; display: block; font-size: 11px; }
+  #modal .closebar { margin-top: 14px; text-align: right; }
+
+  /* ---------- Écran titre ---------- */
+  #title {
+    position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 26px;
+    background: radial-gradient(ellipse at 50% 30%, rgba(40,60,100,.35), rgba(8,10,16,.72));
+  }
+  #title h1 {
+    font-size: clamp(46px, 9vw, 88px); letter-spacing: 3px; color: #fff;
+    text-shadow: 0 4px 0 #2f66b0, 0 8px 22px rgba(0,0,0,.6);
+    font-weight: 900;
+  }
+  #title h1 span { color: #ffd98a; text-shadow: 0 4px 0 #b0742f, 0 8px 22px rgba(0,0,0,.6); }
+  #title p { color: #cfe0f2; font-size: 15px; margin-top: -14px; }
+  #title .tbtns { display: flex; gap: 14px; }
+  #title button { font-size: 17px; padding: 13px 30px; }
+
+  /* ---------- Toast ---------- */
+  #toast {
+    position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+    padding: 9px 20px; z-index: 50; font-size: 14px; display: none;
+  }
+
+  /* ---------- Contrôles tactiles ---------- */
+  #touch { position: absolute; inset: 0; z-index: 30; pointer-events: none; display: none; }
+  #touch .tbtn {
+    position: absolute; pointer-events: auto; width: 54px; height: 54px; border-radius: 50%;
+    background: rgba(30,40,58,.65); border: 2px solid rgba(255,255,255,.3);
+    color: #fff; font-size: 21px; font-weight: 900; display: flex; align-items: center;
+    justify-content: center;
+  }
+  #t-up    { left: 74px;  bottom: 138px; }
+  #t-down  { left: 74px;  bottom: 22px; }
+  #t-left  { left: 16px;  bottom: 80px; }
+  #t-right { left: 132px; bottom: 80px; }
+  #t-a { right: 24px; bottom: 96px; width: 62px; height: 62px; background: rgba(74,142,224,.7); }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="panel">
+  <canvas id="hudmon" width="52" height="52"></canvas>
+  <div id="hudinfo">
+    <b id="hudname">—</b>
+    <div class="minibar"><div id="hudhp" style="width:100%"></div></div>
+    <span id="hudballs">Novaballs : 0</span>
+  </div>
+</div>
+<div id="hudbtns">
+  <button id="btn-team">👥 Équipe</button>
+  <button id="btn-dex">📘 Novadex</button>
+  <button id="btn-bag">🎒 Sac</button>
+  <button id="btn-menu">⚙️</button>
+</div>
+
+<div id="dialog" class="panel">
+  <div id="dlgname"></div>
+  <div id="dlgtext"></div>
+  <div id="dlgnext">▼</div>
+</div>
+
+<div id="enemycard" class="moncard panel">
+  <span class="mname" id="e-name"></span><span class="mlv" id="e-lv"></span>
+  <div class="hpline"><span>PV</span><div class="bar"><div id="e-hp"></div></div></div>
+</div>
+<div id="allycard" class="moncard panel">
+  <span class="mname" id="a-name"></span><span class="mlv" id="a-lv"></span>
+  <div class="hpline"><span>PV</span><div class="bar"><div id="a-hp"></div></div></div>
+  <div class="hpnum" id="a-hpnum"></div>
+  <div class="xpbar"><div id="a-xp"></div></div>
+</div>
+<div id="bmenu" class="panel"></div>
+
+<div id="modalwrap"><div id="modal" class="panel"></div></div>
+
+<div id="toast" class="panel"></div>
+
+<div id="title">
+  <h1>NOVA<span>MON</span></h1>
+  <p>Un RPG 2D-HD de capture de créatures — Région de Kaelis</p>
+  <div class="tbtns">
+    <button class="primary" id="btn-new">Nouvelle partie</button>
+    <button id="btn-continue" style="display:none">Continuer</button>
+  </div>
+  <p style="font-size:12px;opacity:.75">ZQSD / flèches : se déplacer • E : interagir • Maj : courir • Échap : menu</p>
+</div>
+
+<div id="touch">
+  <div class="tbtn" id="t-up">▲</div>
+  <div class="tbtn" id="t-down">▼</div>
+  <div class="tbtn" id="t-left">◀</div>
+  <div class="tbtn" id="t-right">▶</div>
+  <div class="tbtn" id="t-a">E</div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
