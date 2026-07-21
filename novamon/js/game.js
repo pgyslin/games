@@ -48,7 +48,8 @@ const G = {
   view3d: true,            // vue "Paper 3D" (sol en perspective, sprites plats)
   fade: 0,
   transition: false,
-  weather: "clair"         // clair | soleil | pluie (extérieur)
+  weather: "clair",        // clair | soleil | pluie (extérieur)
+  noclip: false            // outil de dev (F2) : traverser les obstacles
 };
 let B = null;              // état du combat en cours
 let time = 0, lastT = 0;
@@ -336,6 +337,7 @@ window.addEventListener("keydown", e => {
     if (modalOpen) closeModal();
     else if (G.mode === "world" && !sayResolve) openMenuModal();
   }
+  if (e.key === "F2") { e.preventDefault(); openAdminModal(); }
 });
 window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
 
@@ -365,6 +367,7 @@ function heldDir() {
   return null;
 }
 function walkable(x, y) {
+  if (G.noclip) return (x >= 0 && y >= 0 && x < CM().w && y < CM().h);
   const t = tileAt(x, y);
   if (SOLID_TILES.has(t)) return false;
   if (NPC_AT[x + "," + y]) return false;
@@ -1319,6 +1322,104 @@ function openMenuModal() {
       localStorage.removeItem(SAVE_KEY);
       location.reload();
     }
+  });
+}
+
+// ============================================================
+//  Panneau de développement (ouvert par F2 — volontairement absent
+//  de l'écran d'aide). Outils de test : objets, badges, dex, soin,
+//  invocation d'espèces, niveaux, téléportation, météo, noclip.
+// ============================================================
+function openAdminModal() {
+  if (G.mode === "battle") { toast("Panneau indisponible en combat."); return; }
+  const opts = DEX_ORDER.map(id => `<option value="${id}">${SPECIES[id].name}</option>`).join("");
+  const mapOpts = Object.keys(MAPS).map(id => `<option value="${id}">${MAPS[id].label}</option>`).join("");
+  const html = `<h2>🛠️ Panneau de développement <small style="color:#8a97a8;font-weight:normal">(F2)</small></h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+      <button id="adm-items">🎒 Objets ×99</button>
+      <button id="adm-badges">🏅 Tous les badges</button>
+      <button id="adm-dex">📘 Novadex complet</button>
+      <button id="adm-heal">💖 Soigner l'équipe</button>
+      <button id="adm-lvup">⬆️ Équipe +5 niveaux</button>
+      <button id="adm-weather">🌦️ Météo suivante</button>
+      <button id="adm-noclip">👻 Traverser les murs : ${G.noclip ? "ON" : "OFF"}</button>
+      <button id="adm-daynight">🌗 Jour/Nuit</button>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:13px">Invoquer :</span>
+      <select id="adm-sp" style="flex:1;min-width:120px">${opts}</select>
+      <label style="font-size:13px">Nv <input id="adm-lv" type="number" value="15" min="1" max="100" style="width:56px"></label>
+      <button id="adm-give">➕ Ajouter</button>
+    </div>
+    <div style="margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:13px">Téléporter :</span>
+      <select id="adm-map" style="flex:1;min-width:120px">${mapOpts}</select>
+      <button id="adm-tp">🚀 Aller</button>
+    </div>
+    <p style="font-size:11px;color:#8a97a8;margin-top:10px">Outils de test réservés au développement.</p>`;
+  openModal(html);
+  const flash = msg => toast(msg, 1400);
+  document.getElementById("adm-items").addEventListener("click", () => {
+    for (const id of Object.keys(G.items)) G.items[id] = 99;
+    updateHud(); flash("Objets ×99"); saveGame();
+  });
+  document.getElementById("adm-badges").addEventListener("click", () => {
+    for (const bId of Object.keys(BADGES)) G.badges[bId] = true;
+    updateHud(); flash("Badges débloqués"); saveGame();
+  });
+  document.getElementById("adm-dex").addEventListener("click", () => {
+    for (const id of DEX_ORDER) markCaught(id);
+    flash("Novadex complet"); saveGame();
+  });
+  document.getElementById("adm-heal").addEventListener("click", () => {
+    for (const m of G.team) m.hp = m.stats.maxHp;
+    updateHud(); flash("Équipe soignée");
+  });
+  document.getElementById("adm-lvup").addEventListener("click", () => {
+    for (const m of G.team) {
+      m.level = Math.min(100, m.level + 5);
+      m.stats = calcStats(m.sp, m.level);
+      m.hp = m.stats.maxHp;
+      m.moves = movesAtLevel(m.sp, m.level);
+    }
+    updateHud(); flash("Équipe +5 niveaux"); saveGame();
+  });
+  document.getElementById("adm-weather").addEventListener("click", () => {
+    const order = ["clair", "soleil", "pluie"];
+    G.weather = order[(order.indexOf(G.weather) + 1) % order.length];
+    RAIN = [];
+    flash("Météo : " + G.weather);
+  });
+  document.getElementById("adm-noclip").addEventListener("click", () => {
+    G.noclip = !G.noclip; flash("Traverser les murs : " + (G.noclip ? "ON" : "OFF")); openAdminModal();
+  });
+  document.getElementById("adm-daynight").addEventListener("click", () => {
+    // décale l'horloge d'un demi-cycle
+    time += Math.PI / 0.008 / 2;
+    flash("Bascule jour/nuit");
+  });
+  document.getElementById("adm-give").addEventListener("click", () => {
+    const id = document.getElementById("adm-sp").value;
+    const lv = Math.max(1, Math.min(100, parseInt(document.getElementById("adm-lv").value, 10) || 15));
+    const mon = createMon(id, lv);
+    if (G.team.length < 6) G.team.push(mon); else G.box.push(mon);
+    markCaught(id); updateHud(); flash(`${SPECIES[id].name} Nv.${lv} ajouté`); saveGame();
+  });
+  document.getElementById("adm-tp").addEventListener("click", () => {
+    const to = document.getElementById("adm-map").value;
+    closeModal();
+    const m = MAPS[to];
+    // cherche une case franchissable près du centre
+    let tx = Math.floor(m.w / 2), ty = Math.floor(m.h / 2);
+    outer:
+    for (let r = 0; r < Math.max(m.w, m.h); r++) {
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        const x = Math.floor(m.w / 2) + dx, y = Math.floor(m.h / 2) + dy;
+        if (x < 0 || y < 0 || x >= m.w || y >= m.h) continue;
+        if (!SOLID_TILES.has(m.grid[y][x])) { tx = x; ty = y; break outer; }
+      }
+    }
+    switchMap(to, tx, ty, "down");
   });
 }
 
