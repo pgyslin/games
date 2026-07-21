@@ -226,7 +226,7 @@ function check(name, cond, extra = '') {
   await page.click('#btn-dex');
   await page.waitForTimeout(500);
   const dexCount = await page.evaluate(() => document.querySelectorAll('.dexcell').length);
-  check('Novadex : 25 espèces listées', dexCount === 25, 'cellules = ' + dexCount);
+  check('Novadex : 31 espèces listées', dexCount === 31, 'cellules = ' + dexCount);
   await shot('dex');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
