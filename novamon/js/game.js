@@ -1967,6 +1967,48 @@ function getRender(mapId) {
       }
     }
   }
+  // --- passe 3 : props décoratifs de nature (dissémination procédurale) ---
+  // Petits éléments non bloquants (champignons, fleurs, buissons, souches,
+  // cactus, nénuphars…) semés sur l'herbe et les bords d'eau selon un bruit
+  // déterministe, pour enrichir le décor sans toucher aux cartes. Dessinés
+  // dans le canvas 2D (comme les arbres) ET recensés comme billboards 3D.
+  const PROP_POOLS = {
+    route2:     ["prop_mushroom", "prop_stump", "prop_berry", "prop_grass", "prop_mushroom"],
+    rocheville: ["prop_cactus", "prop_stump", "prop_grass"],
+    citeazur:   ["prop_cactus", "prop_grass", "prop_flowerb"],
+    _default:   ["prop_flowerb", "prop_flowero", "prop_flowerp", "prop_berry", "prop_grass", "prop_mushroom"]
+  };
+  // bruit uniforme [0,1) déterministe (hash2 sature vers 0,5 selon les entrées)
+  const rnd01 = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
+  if (!interior) {
+    const pool = PROP_POOLS[mapId] || PROP_POOLS._default;
+    for (let y = 0; y < map.h; y++) {
+      for (let x = 0; x < map.w; x++) {
+        const t = map.grid[y][x];
+        let name = null;
+        if (t === "w") {
+          // nénuphars épars sur l'eau
+          if (rnd01(x + 3, y + 5) > .90) name = "prop_lilypad";
+        } else if (t === ".") {
+          // props sur l'herbe (densité ~10 %)
+          if (rnd01(x + 1, y + 2) > .90) {
+            name = pool[Math.floor(rnd01(x + 7, y + 4) * pool.length) % pool.length];
+          }
+        }
+        if (!name) continue;
+        const img = oArt(name);
+        const px = x * TILE + TILE / 2, py = y * TILE + TILE;
+        if (img) {
+          if (t !== "w") castShadow(px, py - 2, 8, 3);
+          oDraw(img, px, py, 26, 26);
+        }
+        R.props = R.props || [];
+        R.props.push([x, y]);
+        R.objects.push({ wx: px, wy: py, kind: name, v: hash2(x, y) });
+      }
+    }
+  }
+
   // recensement des décors comme "billboards" pour la vue Paper 3D
   const OBJ_KIND = { "T": "tree", "r": "rock", ";": "tuft", "!": "lamp", "%": "pot", "#": "wall", "F": "fountain", "h": "house", "H": "heal", "L": "lab", "G": "gymG" };
   for (let y = 0; y < map.h; y++) {
@@ -1997,6 +2039,7 @@ function objArtFor(kind, v) {
   }[kind];
   if (kind === "tuft") return artOk(ART.tiles.sprout) ? ART.tiles.sprout : null;
   if (kind === "wall") return artOk(ART.tiles.wallstone) ? ART.tiles.wallstone : null;
+  if (kind.startsWith("prop_")) return artOk(ART.obj[kind]) ? ART.obj[kind] : null;
   if (!pick) return null;
   return artOk(ART.obj[pick]) ? ART.obj[pick] : null;
 }
@@ -2012,7 +2055,7 @@ function objSprite(kind, v = 0) {
       rock: 28, tuft: 26, lamp: 40, pot: 28, wall: 32,
       house: 50, heal: 50, lab: 50, gymG: 50, gymD: 50
     };
-    const lh = HDIM[kind] || 32;
+    const lh = HDIM[kind] || (kind.startsWith("prop_") ? 22 : 32);
     const lw = Math.round(lh * (img.naturalWidth / img.naturalHeight));
     const SS = 3;
     const c = document.createElement("canvas");
