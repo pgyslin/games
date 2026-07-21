@@ -32,7 +32,7 @@ resize();
 const G = {
   mode: "title",           // title | world | battle
   mapId: "kaelis",
-  hero: { x: 29, y: 26, px: 29, py: 26, dir: "down", moving: false, prog: 0, tx: 29, ty: 26, phase: 0 },
+  hero: { x: 29, y: 26, px: 29, py: 26, dir: "down", moving: false, prog: 0, tx: 29, ty: 26, phase: 0, sx: 1, sxT: 1 },
   team: [], box: [],
   items: { ball: 0, superball: 0, potion: 0, superpotion: 0 },
   dex: { seen: {}, caught: {} },
@@ -43,6 +43,7 @@ const G = {
   steps: 0,
   muted: false,
   fx: true,                // effets HD (profondeur de champ, étalonnage)
+  view3d: true,            // vue "Paper 3D" (sol en perspective, sprites plats)
   fade: 0,
   transition: false
 };
@@ -231,6 +232,10 @@ const DELTA = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
 function updateWorld(dt) {
   const h = G.hero;
+  // retournement "papier" du héros (vue Paper 3D)
+  if (h.dir === "left") h.sxT = -1;
+  else if (h.dir === "right") h.sxT = 1;
+  h.sx = (h.sx ?? 1) + ((h.sxT ?? 1) - (h.sx ?? 1)) * Math.min(1, dt * 10);
   if (!h.moving && !sayResolve && !modalOpen && !G.transition) {
     const dir = heldDir();
     if (dir) {
@@ -961,6 +966,7 @@ function openMenuModal() {
   let html = `<h2>⚙️ Menu</h2>
     <div style="display:flex;flex-direction:column;gap:8px">
       <button id="m-save">💾 Sauvegarder</button>
+      <button id="m-view">${G.view3d ? "🎬 Vue : Paper 3D" : "🎬 Vue : 2D classique"}</button>
       <button id="m-fx">${G.fx ? "✨ Effets HD : activés" : "✨ Effets HD : désactivés"}</button>
       <button id="m-sound">${G.muted ? "🔇 Son : coupé" : "🔊 Son : activé"}</button>
       <button id="m-help">❓ Aide</button>
@@ -968,6 +974,7 @@ function openMenuModal() {
     </div>`;
   openModal(html);
   document.getElementById("m-save").addEventListener("click", () => { saveGame(); toast("Partie sauvegardée ✓"); closeModal(); });
+  document.getElementById("m-view").addEventListener("click", () => { G.view3d = !G.view3d; saveGame(); openMenuModal(); });
   document.getElementById("m-fx").addEventListener("click", () => { G.fx = !G.fx; saveGame(); openMenuModal(); });
   document.getElementById("m-sound").addEventListener("click", () => { G.muted = !G.muted; saveGame(); openMenuModal(); });
   document.getElementById("m-help").addEventListener("click", () => {
@@ -1024,7 +1031,7 @@ function saveGame() {
   if (!G.flags.starter && G.team.length === 0 && G.mode === "title") return;
   const data = {
     team: G.team, box: G.box, items: G.items, dex: G.dex, taken: G.taken,
-    flags: G.flags, steps: G.steps, muted: G.muted, fx: G.fx,
+    flags: G.flags, steps: G.steps, muted: G.muted, fx: G.fx, view3d: G.view3d,
     badges: G.badges, mapId: G.mapId, lastHeal: G.lastHeal,
     hero: { x: G.hero.x, y: G.hero.y, dir: G.hero.dir }
   };
@@ -1044,6 +1051,7 @@ function loadGame() {
     G.steps = d.steps || 0;
     G.muted = !!d.muted;
     G.fx = d.fx !== undefined ? !!d.fx : true;
+    G.view3d = d.view3d !== undefined ? !!d.view3d : true;
     G.mapId = (d.mapId && MAPS[d.mapId]) ? d.mapId : "kaelis";
     G.lastHeal = d.lastHeal || { map: "kaelis", x: 6, y: 25 };
     if (d.hero) {
@@ -1101,10 +1109,14 @@ const GYM_CARPET = { "Plante": "#4e8a3c", "Roche": "#8a6f4e", "Eau": "#3c6f9e" }
 function getRender(mapId) {
   if (RENDER_CACHE[mapId]) return RENDER_CACHE[mapId];
   const map = MAPS[mapId];
+  // "floor" : uniquement le sol (utilisé par la vue Paper 3D) ;
+  // "canvas" : carte complète avec décors (vue 2D classique)
+  const floor = document.createElement("canvas");
+  floor.width = map.w * TILE; floor.height = map.h * TILE;
+  let m = floor.getContext("2d");
   const c = document.createElement("canvas");
-  c.width = map.w * TILE; c.height = map.h * TILE;
-  const m = c.getContext("2d");
-  const R = { canvas: c, water: [], tufts: [], lamps: [], fountains: [], flowers: [] };
+  c.width = floor.width; c.height = floor.height;
+  const R = { canvas: c, floor, objects: [], water: [], tufts: [], lamps: [], fountains: [], flowers: [] };
   const interior = map.theme === "interior";
 
   // --- passe 1 : sols ---
@@ -1164,6 +1176,26 @@ function getRender(mapId) {
     const px = x * TILE, py = y * TILE;
     if (tileOf(map, x, y - 1) !== "w") { m.fillStyle = "rgba(255,255,255,.35)"; m.fillRect(px, py, TILE, 3); }
   }
+
+  // les fleurs font partie du sol (nécessaire pour la vue Paper 3D)
+  for (let y = 0; y < map.h; y++) {
+    for (let x = 0; x < map.w; x++) {
+      if (map.grid[y][x] !== ",") continue;
+      const h = hash2(x, y);
+      for (let i = 0; i < 3; i++) {
+        const fx = x * TILE + 5 + ((h * 97 + i * 41) % 22), fy = y * TILE + 6 + ((h * 61 + i * 29) % 20);
+        m.fillStyle = ["#ffd9ec", "#fff3b0", "#ffffff"][i % 3];
+        m.beginPath(); m.arc(fx, fy, 2.6, 0, Math.PI * 2); m.fill();
+        m.fillStyle = "#e8a838";
+        m.beginPath(); m.arc(fx, fy, 1, 0, Math.PI * 2); m.fill();
+      }
+    }
+  }
+
+  // le sol est terminé : les décors se dessinent sur la carte complète (vue 2D)
+  const full = c.getContext("2d");
+  full.drawImage(floor, 0, 0);
+  m = full;
 
   // ombre portée du soleil (direction sud-ouest) pour arbres/maisons
   function castShadow(px, py, rx, ry) {
@@ -1289,8 +1321,166 @@ function getRender(mapId) {
       }
     }
   }
+  // recensement des décors comme "billboards" pour la vue Paper 3D
+  const OBJ_KIND = { "T": "tree", "r": "rock", ";": "tuft", "!": "lamp", "%": "pot", "#": "wall", "F": "fountain", "h": "house", "H": "heal", "L": "lab", "G": "gymG" };
+  for (let y = 0; y < map.h; y++) {
+    for (let x = 0; x < map.w; x++) {
+      const t = map.grid[y][x];
+      let kind = OBJ_KIND[t];
+      if (t === "D" && !interior) kind = "gymD";
+      if (!kind) continue;
+      R.objects.push({ wx: x * TILE + TILE / 2, wy: y * TILE + TILE, kind, v: hash2(x, y) });
+    }
+  }
+
   RENDER_CACHE[mapId] = R;
   return R;
+}
+
+// ============================================================
+//  Sprites de décor "carton" pour la vue Paper 3D
+// ============================================================
+const OBJ_CACHE = {};
+function objSprite(kind, v = 0) {
+  const key = kind + "|" + Math.floor(v * 4);
+  if (OBJ_CACHE[key]) return OBJ_CACHE[key];
+  const DIM = {
+    tree: [52, 66], rock: [34, 28], tuft: [34, 24], lamp: [28, 60], pot: [26, 36],
+    wall: [34, 48], fountain: [42, 30], house: [48, 50], heal: [48, 50], lab: [48, 54],
+    gymG: [48, 52], gymD: [48, 52]
+  };
+  const [lw, lh] = DIM[kind] || [32, 32];
+  const SS = 3; // sur-échantillonnage pour des découpes nettes
+  const c = document.createElement("canvas");
+  c.width = lw * SS; c.height = lh * SS;
+  c.lw = lw; c.lh = lh;
+  const g = c.getContext("2d");
+  g.scale(SS, SS);
+  // ombre au sol commune (ancrée en bas du sprite)
+  g.fillStyle = "rgba(20,30,20,.30)";
+  g.beginPath(); g.ellipse(lw / 2, lh - 3, lw * .40, 3.6, 0, 0, Math.PI * 2); g.fill();
+  const cx = lw / 2, by = lh - 4;
+
+  if (kind === "tree") {
+    g.fillStyle = "#7a5230"; g.fillRect(cx - 4, by - 18, 8, 18);
+    g.strokeStyle = "#54381c"; g.lineWidth = 1.4; g.strokeRect(cx - 4, by - 18, 8, 18);
+    const gr = g.createRadialGradient(cx - 6, by - 46, 4, cx, by - 38, 24);
+    gr.addColorStop(0, v > .5 ? "#82c25c" : "#6fae4e"); gr.addColorStop(1, "#2f6130");
+    g.fillStyle = gr;
+    g.beginPath();
+    g.arc(cx - 11, by - 28, 12, 0, 7);
+    g.arc(cx + 11, by - 28, 12, 0, 7);
+    g.arc(cx, by - 44, 14, 0, 7);
+    g.arc(cx, by - 27, 14, 0, 7);
+    g.fill();
+    g.strokeStyle = "#24491f"; g.lineWidth = 2;
+    g.beginPath(); g.arc(cx, by - 34, 21, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = "rgba(255,255,255,.16)";
+    g.beginPath(); g.arc(cx - 8, by - 46, 6, 0, 7); g.fill();
+  }
+  else if (kind === "rock") {
+    const gr = g.createRadialGradient(cx - 5, by - 16, 3, cx, by - 9, 15);
+    gr.addColorStop(0, "#b8aca0"); gr.addColorStop(1, "#6e6258");
+    g.fillStyle = gr;
+    g.beginPath(); g.ellipse(cx, by - 9, 13, 10, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "#4a4038"; g.lineWidth = 2; g.stroke();
+    g.fillStyle = "rgba(255,255,255,.25)";
+    g.beginPath(); g.ellipse(cx - 4, by - 14, 4, 2.5, -.4, 0, Math.PI * 2); g.fill();
+  }
+  else if (kind === "tuft") {
+    g.fillStyle = v > .5 ? "hsl(116,48%,30%)" : "hsl(110,48%,27%)";
+    for (let i = 0; i < 3; i++) {
+      const bx = 5 + i * 11;
+      g.beginPath();
+      g.moveTo(bx, by);
+      g.quadraticCurveTo(bx + 3, by - 12, bx + 5, by - 18);
+      g.quadraticCurveTo(bx + 8, by - 10, bx + 10, by);
+      g.closePath();
+      g.fill();
+    }
+  }
+  else if (kind === "lamp") {
+    g.strokeStyle = "#3a4048"; g.lineWidth = 4; g.lineCap = "round";
+    g.beginPath(); g.moveTo(cx, by); g.lineTo(cx, by - 42); g.stroke();
+    g.fillStyle = "#2c3138";
+    g.beginPath(); g.arc(cx, by - 46, 7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#ffd98a";
+    g.beginPath(); g.arc(cx, by - 46, 4.5, 0, Math.PI * 2); g.fill();
+  }
+  else if (kind === "pot") {
+    g.fillStyle = "#a0623c"; g.strokeStyle = "#6e3f22"; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(cx - 9, by - 13); g.lineTo(cx + 9, by - 13); g.lineTo(cx + 6, by - 1); g.lineTo(cx - 6, by - 1); g.closePath();
+    g.fill(); g.stroke();
+    g.fillStyle = "#4d9e3a";
+    for (const [lx, ly, lr] of [[-6, -19, 6], [0, -24, 7], [6, -18, 6]]) {
+      g.beginPath(); g.ellipse(cx + lx, by + ly, lr, lr * 1.3, lx * .05, 0, Math.PI * 2); g.fill();
+    }
+  }
+  else if (kind === "wall") {
+    g.fillStyle = "hsl(220, 12%, 27%)";
+    g.fillRect(cx - 16, by - 42, 32, 42);
+    g.strokeStyle = "rgba(0,0,0,.5)"; g.lineWidth = 2;
+    g.strokeRect(cx - 16, by - 42, 32, 42);
+    g.fillStyle = "rgba(255,255,255,.10)";
+    g.fillRect(cx - 16, by - 42, 32, 5);
+    g.strokeStyle = "rgba(0,0,0,.25)"; g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(cx - 16, by - 21); g.lineTo(cx + 16, by - 21);
+    g.moveTo(cx, by - 42); g.lineTo(cx, by - 21);
+    g.moveTo(cx - 8, by - 21); g.lineTo(cx - 8, by);
+    g.moveTo(cx + 8, by - 21); g.lineTo(cx + 8, by);
+    g.stroke();
+  }
+  else if (kind === "fountain") {
+    g.fillStyle = "#9aa4ae"; g.strokeStyle = "#5f6870"; g.lineWidth = 2.4;
+    g.beginPath(); g.ellipse(cx, by - 8, 17, 10, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = "#4a90e2";
+    g.beginPath(); g.ellipse(cx, by - 8, 13, 7, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#9aa4ae";
+    g.beginPath(); g.arc(cx, by - 15, 4, 0, Math.PI * 2); g.fill(); g.stroke();
+  }
+  else { // maisons, centre de soins, labo, arène
+    const wall = kind === "house" ? "#e0c9a0" : (kind === "gymG" || kind === "gymD") ? "#d8dce4" : "#f0e8dc";
+    const roof = kind === "heal" ? "#e87a9c" : kind === "lab" ? "#4a8ee0" : (kind === "gymG" || kind === "gymD") ? "#c4a03c" : "#c05a3c";
+    g.fillStyle = wall;
+    g.fillRect(cx - 17, by - 24, 34, 24);
+    g.strokeStyle = "#8a7050"; g.lineWidth = 2;
+    g.strokeRect(cx - 17, by - 24, 34, 24);
+    if (kind === "gymD") {
+      g.fillStyle = "#5a4a6e";
+      g.beginPath(); g.moveTo(cx - 7, by); g.lineTo(cx - 7, by - 15); g.arc(cx, by - 15, 7, Math.PI, 0); g.lineTo(cx + 7, by); g.closePath(); g.fill();
+      g.fillStyle = "#ffd98a";
+      g.beginPath(); g.arc(cx, by - 28, 4, 0, Math.PI * 2); g.fill();
+    } else if (kind === "gymG") {
+      g.fillStyle = "#8fb8d8";
+      g.fillRect(cx - 9, by - 18, 18, 9);
+      g.strokeStyle = "#5f7890"; g.lineWidth = 1.4;
+      g.strokeRect(cx - 9, by - 18, 18, 9);
+    } else {
+      g.fillStyle = "#6e4a2a";
+      g.fillRect(cx - 5, by - 13, 10, 13);
+      g.fillStyle = "#8fb8d8";
+      g.fillRect(cx + 7, by - 19, 8, 7);
+    }
+    g.fillStyle = roof;
+    g.beginPath();
+    g.moveTo(cx - 21, by - 24); g.lineTo(cx, by - 41); g.lineTo(cx + 21, by - 24);
+    g.closePath(); g.fill();
+    g.strokeStyle = shade(roof, .6); g.lineWidth = 2; g.stroke();
+    if (kind === "heal") {
+      g.fillStyle = "#fff";
+      g.fillRect(cx - 2, by - 37, 4, 10);
+      g.fillRect(cx - 5, by - 34, 10, 4);
+    }
+    if (kind === "lab") {
+      g.strokeStyle = "#555"; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(cx + 10, by - 34); g.lineTo(cx + 10, by - 47); g.stroke();
+      g.fillStyle = "#e84a4a";
+      g.beginPath(); g.arc(cx + 10, by - 48, 3, 0, Math.PI * 2); g.fill();
+    }
+  }
+  OBJ_CACHE[key] = c;
+  return c;
 }
 
 // ---------- Particules d'ambiance (lucioles, poussière) ----------
@@ -1311,9 +1501,14 @@ function buildAmbient() {
   }
 }
 
-function dayFactor() { return (Math.sin(time * .008) + 1) / 2; } // 1 = plein jour
+function dayFactor() { return (Math.cos(time * .008) + 1) / 2; } // démarre en plein jour (1)
 
 function renderWorld() {
+  if (G.view3d) renderWorld3D();
+  else renderWorld2D();
+}
+
+function renderWorld2D() {
   const map = CM();
   const R = getRender(G.mapId);
   const h = G.hero;
@@ -1443,7 +1638,11 @@ function renderWorld() {
   w.globalCompositeOperation = "source-over";
   w.restore();
 
-  // ---------- Composition finale ----------
+  composePost(map, day, night);
+}
+
+// ---------- Composition finale (partagée 2D / Paper 3D) ----------
+function composePost(map, day, night) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(worldBuf, 0, 0);
 
@@ -1509,6 +1708,195 @@ function renderWorld() {
     ctx.fillStyle = `rgba(255,160,60,${Math.max(0, (day - .7)) * .18})`;
     ctx.fillRect(0, 0, W, H);
   }
+}
+
+// ============================================================
+//  Vue "Paper 3D" : sol en perspective, décors et personnages
+//  en sprites plats dressés (style Paper Mario)
+// ============================================================
+function renderWorld3D() {
+  const map = CM();
+  const R = getRender(G.mapId);
+  const h = G.hero;
+  const interior = map.theme === "interior";
+  const day = interior ? .85 : dayFactor();
+  const night = 1 - day;
+
+  // caméra ancrée sur le héros, regardant vers le nord
+  const cwx = h.px * TILE + TILE / 2;
+  const cwy = h.py * TILE + TILE / 2;
+  const horizonY = Math.round(H * .20);
+  const z0 = 240;                          // distance caméra → héros
+  const C = (H * .66 - horizonY) * z0;     // constante de projection verticale
+  const F = 520 * (Math.min(H, 1000) / 800); // focale (échelle horizontale)
+
+  const w = wctx;
+  w.setTransform(1, 0, 0, 1, 0, 0);
+  if (shake > 0) w.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+
+  // ---- ciel / fond au-dessus de l'horizon ----
+  const mix = (a, b, t) => Math.round(a + (b - a) * t);
+  if (interior) {
+    const g = w.createLinearGradient(0, 0, 0, horizonY + 40);
+    g.addColorStop(0, "#241a12"); g.addColorStop(1, "#4a3a28");
+    w.fillStyle = g;
+    w.fillRect(0, 0, W, horizonY + 40);
+  } else {
+    const g = w.createLinearGradient(0, 0, 0, horizonY + 20);
+    g.addColorStop(0, `rgb(${mix(24, 125, day)},${mix(34, 190, day)},${mix(64, 235, day)})`);
+    g.addColorStop(1, `rgb(${mix(44, 210, day)},${mix(52, 232, day)},${mix(88, 248, day)})`);
+    w.fillStyle = g;
+    w.fillRect(0, 0, W, horizonY + 20);
+    // soleil / lune
+    w.fillStyle = day > .5 ? "rgba(255,244,200,.9)" : "rgba(230,238,255,.85)";
+    w.beginPath(); w.arc(W * .78, horizonY * .45, day > .5 ? 26 : 16, 0, Math.PI * 2); w.fill();
+    // collines lointaines
+    w.fillStyle = `rgba(${mix(20, 60, day)},${mix(34, 105, day)},${mix(30, 70, day)},.9)`;
+    for (let i = 0; i < 4; i++) {
+      const bx = W * (.05 + i * .28) + Math.sin(i * 3) * 40;
+      w.beginPath(); w.arc(bx, horizonY + 6, 90 + (i % 2) * 60, Math.PI, 0); w.fill();
+    }
+    // nuages de papier
+    w.fillStyle = "rgba(255,255,255,.55)";
+    for (let i = 0; i < 3; i++) {
+      const cxx = ((time * 6 + i * (W + 160) / 3) % (W + 160)) - 80;
+      const cyy = horizonY * (.25 + .2 * ((i * 37) % 10) / 10);
+      w.beginPath();
+      w.ellipse(cxx, cyy, 38, 11, 0, 0, Math.PI * 2);
+      w.ellipse(cxx + 22, cyy - 6, 24, 9, 0, 0, Math.PI * 2);
+      w.ellipse(cxx - 24, cyy - 4, 20, 8, 0, 0, Math.PI * 2);
+      w.fill();
+    }
+  }
+
+  // ---- sol en perspective (scanlines) ----
+  w.fillStyle = interior ? "#181008" : "#20361f";
+  w.fillRect(0, horizonY, W, H - horizonY);
+  const floor = R.floor, fw = floor.width, fh = floor.height;
+  w.imageSmoothingEnabled = true;
+  const step = 2;
+  for (let sy = horizonY + 1; sy < H; sy += step) {
+    const z = C / (sy - horizonY);
+    const zn = C / (sy + step - horizonY);
+    const wy = cwy + z0 - z;
+    const wyN = cwy + z0 - zn;
+    if (wyN < 0 || wy >= fh) continue;
+    const rowY = Math.max(0, wy);
+    const rowH = Math.max(1, Math.min(fh, wyN) - rowY);
+    const scale = F / z;
+    const srcW = W / scale;
+    const srcX = cwx - srcW / 2;
+    const sx0 = Math.max(0, srcX), sx1 = Math.min(fw, srcX + srcW);
+    if (sx1 <= sx0) continue;
+    const dx0 = (sx0 - srcX) * scale;
+    const dx1 = W - (srcX + srcW - sx1) * scale;
+    w.drawImage(floor, sx0, rowY, sx1 - sx0, rowH, dx0, sy, dx1 - dx0, step);
+  }
+  // brume d'horizon (fond de diorama)
+  const hzg = w.createLinearGradient(0, horizonY - 4, 0, horizonY + 40);
+  hzg.addColorStop(0, interior ? "rgba(30,22,14,.7)" : `rgba(${mix(40, 205, day)},${mix(52, 226, day)},${mix(84, 240, day)},.55)`);
+  hzg.addColorStop(1, "rgba(200,220,240,0)");
+  w.fillStyle = hzg;
+  w.fillRect(0, horizonY - 4, W, 44);
+
+  // ---- billboards (décors, PNJ, héros, objets) ----
+  const zOf = wy => z0 + (cwy - wy);
+  const items = [];
+  const push = (wx, wy, zBias, draw) => {
+    const zb = zOf(wy) + zBias;
+    if (zb < 70 || zb > 1500) return;
+    const s = F / zb;
+    const sx = W / 2 + (wx - cwx) * s;
+    if (sx < -180 || sx > W + 180) return;
+    const sy = horizonY + C / zb;
+    items.push({ z: zb, sx, sy, s, draw });
+  };
+  for (const o of R.objects) {
+    push(o.wx, o.wy, o.kind === "tuft" ? -8 : 0, (sx, sy, s) => {
+      const img = objSprite(o.kind, o.v);
+      w.drawImage(img, sx - img.lw * s / 2, sy - img.lh * s, img.lw * s, img.lh * s);
+    });
+  }
+  for (const n of (map.npcs || [])) {
+    push(n.x * TILE + TILE / 2, n.y * TILE + TILE, 0,
+      (sx, sy, s) => pixNpc(w, n, sx, sy, 46 * s, time, 2));
+  }
+  for (const p of (map.pickups || [])) {
+    if (G.taken[p.id]) continue;
+    push(p.x * TILE + TILE / 2, p.y * TILE + TILE * .8, 0, (sx, sy, s) => {
+      const tw = (Math.sin(time * 4 + p.x) + 1) / 2;
+      drawBall(w, sx, sy - 7 * s, 6.5 * s, p.item.includes("super") ? "superball" : "ball");
+      w.globalAlpha = .5 + tw * .5;
+      w.fillStyle = "#fff8c0";
+      for (const [ox, oy] of [[-9, -16], [8, -18], [0, -22]]) {
+        w.beginPath(); w.arc(sx + ox * s, sy + oy * s, (1.6 + tw) * s, 0, Math.PI * 2); w.fill();
+      }
+      w.globalAlpha = 1;
+    });
+  }
+  // héros : sprite "papier" qui se retourne en changeant de sens
+  push(cwx, h.py * TILE + TILE, -2, (sx, sy, s) => {
+    w.save();
+    w.translate(sx, sy);
+    w.scale(h.sx || 1, 1);
+    pixHero(w, 0, 0, 46 * s, h.dir, h.moving ? h.phase : 0, time, 2);
+    w.restore();
+  });
+  items.sort((a, b) => b.z - a.z);
+  for (const it of items) it.draw(it.sx, it.sy, it.s);
+
+  // ---- lumières additives projetées ----
+  const proj = (wx, wy) => {
+    const zb = zOf(wy);
+    if (zb < 70 || zb > 1500) return null;
+    const s = F / zb;
+    const sx = W / 2 + (wx - cwx) * s;
+    if (sx < -120 || sx > W + 120) return null;
+    return { sx, sy: horizonY + C / zb, s };
+  };
+  w.globalCompositeOperation = "lighter";
+  for (const o of R.objects) {
+    let hgt = 0, str = 0;
+    if (o.kind === "lamp") { hgt = 48; str = 1; }
+    else if (["house", "heal", "lab", "gymG", "gymD"].includes(o.kind)) { hgt = 16; str = .35; }
+    else continue;
+    const a = str * (.12 + .5 * night);
+    if (a < .04) continue;
+    const p = proj(o.wx, o.wy);
+    if (!p) continue;
+    const rr = (46 + Math.sin(time * 6 + o.wx) * 2) * p.s;
+    const g = w.createRadialGradient(p.sx, p.sy - hgt * p.s, 2, p.sx, p.sy - hgt * p.s, rr);
+    g.addColorStop(0, `rgba(255,200,110,${a})`);
+    g.addColorStop(1, "rgba(255,200,110,0)");
+    w.fillStyle = g;
+    w.beginPath(); w.arc(p.sx, p.sy - hgt * p.s, rr, 0, Math.PI * 2); w.fill();
+  }
+  for (const f of ambient) {
+    const tw = (Math.sin(time * 2 + f.ph) + 1) / 2;
+    const a = (.12 + .3 * tw) * (.45 + .55 * night);
+    const p = proj(f.x + Math.sin(time * .8 + f.ph) * 6, f.y + Math.cos(time * .6 + f.ph * 2) * 5);
+    if (!p) continue;
+    const rr = f.r * 4 * p.s;
+    const g = w.createRadialGradient(p.sx, p.sy - 14 * p.s, 0, p.sx, p.sy - 14 * p.s, rr);
+    g.addColorStop(0, `rgba(255,235,150,${a})`);
+    g.addColorStop(1, "rgba(255,235,150,0)");
+    w.fillStyle = g;
+    w.beginPath(); w.arc(p.sx, p.sy - 14 * p.s, rr, 0, Math.PI * 2); w.fill();
+  }
+  // gouttes des fontaines
+  w.fillStyle = "rgba(255,255,255,.6)";
+  for (const [fx, fy] of R.fountains) {
+    const p = proj(fx, fy + 12);
+    if (!p) continue;
+    for (let i = 0; i < 5; i++) {
+      const ph = time * 3 + i * 1.3;
+      const dx = Math.sin(ph) * 6, dy = -Math.abs(Math.cos(ph)) * 9 - 14;
+      w.beginPath(); w.arc(p.sx + dx * p.s, p.sy + dy * p.s, 1.4 * p.s, 0, Math.PI * 2); w.fill();
+    }
+  }
+  w.globalCompositeOperation = "source-over";
+
+  composePost(map, day, night);
 }
 
 // ============================================================

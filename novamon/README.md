@@ -44,6 +44,16 @@ récompenses, et **3 badges** à conquérir auprès des chefs d'arène.
 - **Novadex**, centre de soins dans chaque ville (point de réapparition), objets à ramasser,
   starter à choisir, **sauvegarde automatique** (localStorage).
 
+## 📦 Vue « Paper 3D » (style Paper Mario)
+
+Par défaut, le monde s'affiche comme un **diorama en papier** : le sol est projeté en
+perspective 3D (il file vers l'horizon), tandis que les arbres, maisons, murs et personnages
+sont des **sprites plats dressés** comme des découpes de carton, triés par profondeur.
+Le héros **se retourne comme une feuille de papier** quand il change de direction, le ciel
+affiche collines, nuages et soleil/lune selon l'heure, et les intérieurs d'arène deviennent
+de vraies salles en volume. Basculez entre « Paper 3D » et « 2D classique » dans le
+menu (⚙️ → « Vue »).
+
 ## 🎨 Rendu « HD-2D »
 
 - Sprites **pixel-art** : personnages et créatures rendus en basse résolution puis ré-agrandis
