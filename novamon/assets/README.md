@@ -21,7 +21,9 @@ obligatoire (mentionnée ici par courtoisie) :
 | [RPG Audio](https://kenney.nl/assets/rpg-audio) | Kenney | CC0 | porte (transition de carte), secousse de Novaball, objets (`audio/door`, `shake`, `item`) |
 | [Music Jingles](https://kenney.nl/assets/music-jingles) | Kenney | CC0 | jingles de niveau, badge et victoire (`audio/levelup`, `badge`, `victory`) |
 | [Dungeon Crawl 32×32 tiles](https://opengameart.org/content/dungeon-crawl-32x32-tiles) | équipe DCSS (via OpenGameArt) | CC0 | sprites des créatures (`<id>.png`), plante en pot d'arène |
-| [Chiptune Adventures](https://opengameart.org/content/4-chiptunes-adventure) | Juhani Junkala (OpenGameArt) | CC0 | musiques : titre, exploration, combat (`audio/music_*`) |
+| [Chiptune Adventures](https://opengameart.org/content/4-chiptunes-adventure) | Juhani Junkala (OpenGameArt) | CC0 | musiques : titre, exploration/routes, forêt, combat (`audio/music_title`, `music_explore`, `music_forest`, `music_battle`) |
+| [Town Theme (RPG)](https://opengameart.org/content/town-theme-rpg) | Bonsaiheldin (OpenGameArt) | CC0 | musique des villes (`audio/music_town.mp3`) |
+| [Cave Theme](https://opengameart.org/content/cave-theme) | Clint Bellanger (OpenGameArt) | CC0 | musique des arènes / intérieurs (`audio/music_gym`) |
 
 > ⚠️ Aucun sprite officiel Pokémon/Nintendo n'est utilisé : les créatures sont des
 > **fakemons** originaux dont l'apparence provient du tileset CC0 de Dungeon Crawl.

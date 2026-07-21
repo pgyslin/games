@@ -174,11 +174,29 @@ const SFX = {
 };
 
 // ---------- Musiques d'ambiance (boucles) ----------
+// Fichiers réels (certaines pistes CC0 ne sont dispo qu'en .mp3)
+const MUSIC_FILE = {
+  music_title: "music_title.ogg",
+  music_town: "music_town.mp3",
+  music_explore: "music_explore.ogg",
+  music_forest: "music_forest.ogg",
+  music_gym: "music_gym.ogg",
+  music_battle: "music_battle.ogg"
+};
+// Musique associée à chaque carte / contexte
+function musicForMap(mapId) {
+  const m = MAPS[mapId];
+  if (!m) return "music_explore";
+  if (m.theme === "interior") return "music_gym";     // arènes (intérieurs)
+  if (m.theme === "city") return "music_town";        // villes
+  if (mapId === "route2") return "music_forest";      // forêt sombre
+  return "music_explore";                              // routes et plaines
+}
 const MUSIC = {
   els: {}, want: null, cur: null, unlocked: false,
   track(name) {
     if (!this.els[name]) {
-      const a = new Audio("assets/audio/" + name + ".ogg");
+      const a = new Audio("assets/audio/" + (MUSIC_FILE[name] || name + ".ogg"));
       a.loop = true;
       a.preload = "auto";
       a.addEventListener("error", () => { a.failed = true; });
@@ -407,6 +425,7 @@ async function switchMap(to, tx, ty, dir) {
   if (dir) h.dir = dir;
   setupMap();
   banner(CM().label);
+  if (G.mode === "world") MUSIC.play(musicForMap(to));  // musique de la nouvelle zone
   await tween(G, "fade", 1, 0, 320);
   G.transition = false;
   saveGame();
@@ -1153,7 +1172,7 @@ function endBattle() {
   aCard.style.display = "none";
   B = null;
   G.mode = "world";
-  MUSIC.play("music_explore");
+  MUSIC.play(musicForMap(G.mapId));
   updateHud();
   saveGame();
 }
@@ -2889,7 +2908,7 @@ document.getElementById("btn-new").addEventListener("click", () => {
   setupMap();
   banner(CM().label);
   SFX.confirm();
-  MUSIC.play("music_explore");
+  MUSIC.play(musicForMap(G.mapId));
   updateHud();
   (async () => {
     await say("Bienvenue à Kaelis ! La Professeure Aralia t'attend devant son laboratoire (la maison au toit bleu, à droite).", "");
@@ -2904,7 +2923,7 @@ document.getElementById("btn-continue").addEventListener("click", () => {
   setupMap();
   banner(CM().label);
   SFX.confirm();
-  MUSIC.play("music_explore");
+  MUSIC.play(musicForMap(G.mapId));
   updateHud();
   toast("Partie chargée ✓");
 });
