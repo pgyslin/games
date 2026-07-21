@@ -1047,8 +1047,15 @@ async function trainerVictory() {
     G.badges[npc.badge] = true;
     SFX.badge();
     await say(`Vous obtenez le ${BADGES[npc.badge].name} ${BADGES[npc.badge].icon} !`);
+    await say("Un éclat de la Gemme d'Harmonie scintille au cœur du badge…", "");
     const count = Object.keys(G.badges).length;
-    if (count >= 3) await say("Les trois badges de Kaelis sont à vous. La Ligue vous attend… bientôt !");
+    if (count >= 3) {
+      G.flags.gemme = true;
+      if (B) { evolutionAura(W * .3, H * .5); }
+      SFX.catchOk();
+      await say("Les trois éclats sont réunis ! La Gemme d'Harmonie reprend forme dans un halo de lumière…");
+      await say("Au loin, un grondement profond répond : le Cœur de Kaelis s'est éveillé. Ta légende ne fait que commencer.");
+    }
   }
   G.flags["beat_" + npc.id] = true;
 }
@@ -1299,6 +1306,7 @@ function openMenuModal() {
       <button id="m-sound">${G.muted ? "🔇 Son : coupé" : "🔊 Son : activé"}</button>
       <button id="m-volsfx" ${G.muted ? "disabled style='opacity:.4'" : ""}>🎚️ Effets sonores : ${pct(G.volSfx)}</button>
       <button id="m-volmus" ${G.muted ? "disabled style='opacity:.4'" : ""}>🎵 Musique : ${pct(G.volMus)}</button>
+      <button id="m-lore">📜 Légende de Kaelis</button>
       <button id="m-help">❓ Aide</button>
       <button class="danger" id="m-reset">🗑️ Recommencer à zéro</button>
     </div>`;
@@ -1313,6 +1321,27 @@ function openMenuModal() {
   });
   document.getElementById("m-volmus").addEventListener("click", () => {
     G.volMus = cycle(G.volMus); MUSIC.apply(); saveGame(); openMenuModal();
+  });
+  document.getElementById("m-lore").addEventListener("click", () => {
+    const badges = Object.keys(G.badges).length;
+    openModal(`<h2>📜 La Légende de Kaelis</h2>
+      <div style="line-height:1.75;font-size:14px;max-width:52ch">
+      <p>Jadis, la région de <b>Kaelis</b> résonnait des querelles entre les humains et les
+      Novamon sauvages. Ni les uns ni les autres ne voulaient partager les forêts, les lacs
+      et les crêtes.</p>
+      <p>Du plus profond de la terre s'éveilla alors le <b>Cœur de Kaelis</b>, une créature
+      d'une puissance oubliée. Plutôt que de choisir un camp, il façonna la <b>Gemme
+      d'Harmonie</b> : sa lueur apaisait les colères et liait les cœurs, qu'ils soient
+      humains ou Novamon.</p>
+      <p>Craignant qu'un tyran ne s'en empare, les sages brisèrent la Gemme en <b>trois
+      éclats</b> et les confièrent aux trois cités : <b>Verdicité</b> la verdoyante,
+      <b>Rocheville</b> la solide et la <b>Cité Azur</b> la maritime. Chaque éclat fut scellé
+      dans le <b>badge</b> remis par le chef d'arène.</p>
+      <p>On raconte que réunir les trois badges rappellerait le Cœur de Kaelis… mais nul
+      dresseur vivant ne l'a jamais vérifié.</p>
+      <p style="color:#9fd8a0">Éclats de la Gemme réunis : <b>${badges} / 3</b>.
+      ${badges >= 3 ? "La Gemme d'Harmonie est de nouveau entière entre tes mains…" : "Bats les chefs d'arène pour rassembler la Gemme."}</p>
+      </div>`);
   });
   document.getElementById("m-help").addEventListener("click", () => {
     openModal(`<h2>❓ Aide</h2><p style="line-height:1.7;font-size:14px">
@@ -3087,6 +3116,10 @@ document.getElementById("btn-new").addEventListener("click", () => {
   MUSIC.play(musicForMap(G.mapId));
   updateHud();
   (async () => {
+    await say("Il y a très longtemps, humains et Novamon se disputaient la région de Kaelis…", "Légende de Kaelis");
+    await say("Une créature légendaire, le Cœur de Kaelis, offrit alors la Gemme d'Harmonie, dont la lueur apaisa toutes les querelles.", "Légende de Kaelis");
+    await say("Pour la protéger, la Gemme fut brisée en trois éclats, scellés dans les badges des trois arènes de la région.", "Légende de Kaelis");
+    await say("Aujourd'hui, une nouvelle génération de dresseurs se lève… et ton aventure commence.", "Légende de Kaelis");
     await say("Bienvenue à Kaelis ! La Professeure Aralia t'attend devant son laboratoire (la maison au toit bleu, à droite).", "");
     await say("Approche-toi d'elle et appuie sur E pour lui parler.", "");
     hideDialog();

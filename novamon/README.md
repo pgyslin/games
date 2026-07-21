@@ -38,11 +38,24 @@ dans `js/assets-data.js` pour contourner les restrictions `file://`).
 Sur les routes, des **dresseurs** vous défient (parlez-leur avec E) : combats en équipe,
 récompenses, et **3 badges** à conquérir auprès des chefs d'arène.
 
+## 📖 Histoire
+
+Jadis, humains et Novamon se disputaient la région de **Kaelis**. Le **Cœur de Kaelis**,
+créature légendaire, façonna la **Gemme d'Harmonie** pour apaiser les querelles ; brisée en
+trois éclats, elle fut scellée dans les **badges** des trois arènes. Réunir les trois badges
+rassemblerait la Gemme… La légende complète est consultable à tout moment via le menu
+(⚙️ → « 📜 Légende de Kaelis »), et d'autres bribes se découvrent en visitant les maisons
+et en parlant à leurs habitants.
+
 ## ✨ Contenu
 
-- **25 fakemons originaux** répartis sur 13 types, avec table des types, STAB, stats,
-  montée de niveau, apprentissage d'attaques et **évolutions** — dont 6 espèces récentes :
-  Louveran, Scorpide, Méduline, Anguivolt, Phantomite et le rarissime Glacidra.
+- **31 fakemons originaux** répartis sur 13 types, avec table des types, STAB, stats,
+  montée de niveau, apprentissage d'attaques et **évolutions** — dont des espèces à
+  **double type** : Louveran, Scorpide, Méduline, Anguivolt, Phantomite, Glacidra, puis
+  Pyrolithe (Feu/Roche), Nagondin (Poison/Psy), Harfélie (Vol/Fée), Ombraline
+  (Dragon/Spectre), Gargolem (Roche/Vol) et Cerbrûle (Feu/Spectre).
+- **Maisons visitables** : plusieurs demeures de Kaelis et de Verdicité s'ouvrent (E devant
+  la porte) sur des **intérieurs meublés** avec un habitant et un objet à ramasser.
 - **Combats au tour par tour** : sauvages et dresseurs (équipes multiples, fuite et capture
   interdites contre un dresseur), IA qui choisit ses attaques selon leur efficacité.
 - **Capture** à la Novaball (taux selon PV restants et rareté), équipe de 6 + boîte.
@@ -55,8 +68,9 @@ récompenses, et **3 badges** à conquérir auprès des chefs d'arène.
   K.O., lancer, secousses et capture de Novaball, soin, montée de niveau, badge, victoire,
   bruits de pas selon le sol (herbe, bois, sable), portes et transitions de carte,
   sons d'attaque par type (flammes, bulles, étincelles…).
-- **Trois musiques d'ambiance en boucle** (Juhani Junkala, CC0) : écran titre, exploration
-  et combat.
+- **Musiques d'ambiance par zone** (CC0 — Juhani Junkala, cynicmusic/Bonsaiheldin, Clint
+  Bellanger) : écran titre, villes, routes/plaines, forêt, arènes/intérieurs et combats,
+  changeant à chaque transition de carte.
 - Volumes **réglables séparément** (effets / musique) et sourdine dans le menu (⚙️).
 
 ## 💥 Effets visuels
@@ -66,7 +80,9 @@ récompenses, et **3 badges** à conquérir auprès des chefs d'arène.
   **pluie d'étoiles** à la capture, **aura lumineuse** à l'évolution, **flash directionnel**
   à l'entrée des Novamon.
 - Monde : feuilles qui tombent en forêt, **poussière de pas** en courant, **éclaboussures**
-  au bord de l'eau, **météo aléatoire** (halo doré de beau temps, pluie avec voile et brume).
+  au bord de l'eau, **météo aléatoire** (halo doré de beau temps, pluie avec voile et brume),
+  et une multitude de **props de nature** (champignons, fleurs, buissons, souches, cactus,
+  nénuphars) semés selon le biome.
 
 ## 📦 Vue « Paper 3D » (style Paper Mario)
 
