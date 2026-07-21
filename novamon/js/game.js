@@ -1265,7 +1265,7 @@ function openMenuModal() {
     <div style="display:flex;flex-direction:column;gap:8px">
       <button id="m-save">💾 Sauvegarder</button>
       <button id="m-view">${G.view3d ? "🎬 Vue : Paper 3D" : "🎬 Vue : 2D classique"}</button>
-      <button id="m-fx">${G.fx ? "✨ Effets HD : activés" : "✨ Effets HD : désactivés"}</button>
+      <button id="m-fx">${G.fx ? "✨ Effets HD" + (GLFX.ok && !GLFX.slow ? " (WebGL)" : "") + " : activés" : "✨ Effets HD : désactivés"}</button>
       <button id="m-sound">${G.muted ? "🔇 Son : coupé" : "🔊 Son : activé"}</button>
       <button id="m-volsfx" ${G.muted ? "disabled style='opacity:.4'" : ""}>🎚️ Effets sonores : ${pct(G.volSfx)}</button>
       <button id="m-volmus" ${G.muted ? "disabled style='opacity:.4'" : ""}>🎵 Musique : ${pct(G.volMus)}</button>
@@ -1380,7 +1380,7 @@ function tryCustomSprite(id) {
   const img = new Image();
   img.onload = () => { SPECIES[id].custom = img; };
   img.onerror = () => {};
-  img.src = "assets/" + id + ".png";
+  img.src = (typeof ASSET_DATA !== "undefined" && ASSET_DATA[id + ".png"]) || ("assets/" + id + ".png");
 }
 for (const id of Object.keys(SPECIES)) tryCustomSprite(id);
 
@@ -1402,6 +1402,135 @@ fetch("assets/extra-species.json")
     }
   })
   .catch(() => {});
+
+// ============================================================
+//  Post-traitement WebGL : bloom, profondeur de champ tilt-shift,
+//  grain léger et courbe de couleurs, appliqués au canvas du jeu
+//  via un canvas WebGL superposé. Si WebGL est indisponible, le
+//  pipeline canvas 2D existant (composePost) reste utilisé.
+// ============================================================
+const GLFX = { ok: false, canvas: null, gl: null, prog: null, tex: null, loc: {} };
+(function initGlfx() {
+  try {
+    const c = document.createElement("canvas");
+    c.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;display:none";
+    document.body.insertBefore(c, document.getElementById("hud"));
+    const gl = c.getContext("webgl", { alpha: false, antialias: false, preserveDrawingBuffer: false });
+    if (!gl) return;
+    const vs = `attribute vec2 a_pos; varying vec2 v_uv;
+      void main() { v_uv = a_pos * .5 + .5; gl_Position = vec4(a_pos, 0., 1.); }`;
+    const fs = `precision mediump float;
+      varying vec2 v_uv;
+      uniform sampler2D u_tex;
+      uniform vec2 u_res;
+      uniform float u_time;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      void main() {
+        vec2 uv = v_uv;
+        vec2 px = 1.0 / u_res;
+        vec3 base = texture2D(u_tex, uv).rgb;
+        // profondeur de champ "tilt-shift" : net au centre, flou en haut/bas
+        float focus = abs(uv.y - 0.52);
+        float blurAmt = smoothstep(0.16, 0.5, focus);
+        float rad = 1.5 + 6.5 * blurAmt;
+        vec2 dirs[8];
+        dirs[0] = vec2(1.0, 0.0);   dirs[1] = vec2(-1.0, 0.0);
+        dirs[2] = vec2(0.0, 1.0);   dirs[3] = vec2(0.0, -1.0);
+        dirs[4] = vec2(0.7, 0.7);   dirs[5] = vec2(-0.7, 0.7);
+        dirs[6] = vec2(0.7, -0.7);  dirs[7] = vec2(-0.7, -0.7);
+        vec3 blur = base;
+        vec3 bloom = vec3(0.0);
+        for (int i = 0; i < 8; i++) {
+          vec3 s1 = texture2D(u_tex, uv + dirs[i] * px * rad).rgb;
+          vec3 s2 = texture2D(u_tex, uv + dirs[i] * px * (rad * 2.2 + 1.0)).rgb;
+          blur += s1 + s2 * 0.6;
+          bloom += max(s1 - 0.72, 0.0) + max(s2 - 0.72, 0.0);
+        }
+        blur /= (1.0 + 8.0 * 1.6);
+        bloom /= 16.0;
+        vec3 col = mix(base, blur, blurAmt * 0.85);
+        col += bloom * 0.85;                    // bloom doux
+        // étalonnage : centre chaud, bords froids + légère courbe en S
+        float d = distance(uv, vec2(0.5, 0.45));
+        col *= mix(vec3(1.055, 1.0, 0.93), vec3(0.93, 0.965, 1.07), smoothstep(0.15, 0.85, d));
+        col = clamp(col, 0.0, 1.0);
+        col = mix(col, col * col * (3.0 - 2.0 * col), 0.30);
+        // grain léger animé
+        float g = (hash(uv * u_res * 0.5 + fract(u_time * 7.13) * 41.0) - 0.5) * 0.05;
+        col += g * (0.5 + 0.8 * blurAmt);
+        gl_FragColor = vec4(col, 1.0);
+      }`;
+    function mkShader(type, src) {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    }
+    const prog = gl.createProgram();
+    gl.attachShader(prog, mkShader(gl.VERTEX_SHADER, vs));
+    gl.attachShader(prog, mkShader(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    gl.useProgram(prog);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(prog, "a_pos");
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    const tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    GLFX.canvas = c; GLFX.gl = gl; GLFX.prog = prog; GLFX.tex = tex;
+    GLFX.loc = {
+      res: gl.getUniformLocation(prog, "u_res"),
+      time: gl.getUniformLocation(prog, "u_time"),
+      tex: gl.getUniformLocation(prog, "u_tex")
+    };
+    GLFX.ok = true;
+  } catch (e) { GLFX.ok = false; /* repli canvas 2D */ }
+})();
+function glPostActive() { return G.fx && GLFX.ok && !GLFX.slow; }
+// si le rendu WebGL est trop lent (GPU logiciel), on repasse au canvas 2D :
+// mesure du débit d'images sur 3 s après 2 s de chauffe, une seule fois
+let glPerfWarm = 2, glPerfT = 0, glPerfN = 0, glPerfDone = false;
+function glPerfCheck(dt) {
+  if (glPerfDone) return;
+  if (glPerfWarm > 0) { glPerfWarm -= dt; return; }
+  glPerfT += dt; glPerfN++;
+  if (glPerfT >= 3) {
+    glPerfDone = true;
+    if (glPerfN / glPerfT < 25) {
+      GLFX.slow = true;
+      GLFX.canvas.style.display = "none";
+    }
+  }
+}
+GLFX.render = function (t) {
+  const gl = this.gl;
+  try {
+    if (this.canvas.width !== W || this.canvas.height !== H) {
+      this.canvas.width = W; this.canvas.height = H;
+      gl.viewport(0, 0, W, H);
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, cv);
+    gl.uniform2f(this.loc.res, W, H);
+    gl.uniform1f(this.loc.time, t);
+    gl.uniform1i(this.loc.tex, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  } catch (e) {
+    // canvas « tainted » (image externe en file://) : on repasse
+    // définitivement au post-traitement canvas 2D
+    GLFX.ok = false;
+    this.canvas.style.display = "none";
+  }
+};
 
 // ============================================================
 //  Rendu du monde (pré-rendu des cartes + effets HD-2D)
@@ -2197,7 +2326,8 @@ function composePost(map, day, night) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(worldBuf, 0, 0);
 
-  if (G.fx) {
+  if (G.fx && !glPostActive()) {
+    // — repli canvas 2D (WebGL indisponible) —
     // Profondeur de champ "tilt-shift" : flou par sous-échantillonnage,
     // masqué en haut et en bas de l'écran
     sctx2.imageSmoothingEnabled = true;
@@ -2225,7 +2355,8 @@ function composePost(map, day, night) {
     ctx.fillStyle = cg;
     ctx.fillRect(0, 0, W, H);
     ctx.globalCompositeOperation = "source-over";
-
+  }
+  if (G.fx) {
     // rayons de soleil obliques (jour, extérieur)
     if (map.theme !== "interior" && day > .45) {
       ctx.save();
@@ -2664,13 +2795,15 @@ function renderBattle() {
       ctx.closePath(); ctx.fill();
     }
     ctx.restore();
-    ctx.globalCompositeOperation = "soft-light";
-    const cg = ctx.createRadialGradient(W / 2, H * .45, H * .1, W / 2, H / 2, Math.max(W, H) * .8);
-    cg.addColorStop(0, "rgba(255,214,150,.5)");
-    cg.addColorStop(1, "rgba(40,60,120,.45)");
-    ctx.fillStyle = cg;
-    ctx.fillRect(0, 0, W, H);
-    ctx.globalCompositeOperation = "source-over";
+    if (!glPostActive()) {
+      ctx.globalCompositeOperation = "soft-light";
+      const cg = ctx.createRadialGradient(W / 2, H * .45, H * .1, W / 2, H / 2, Math.max(W, H) * .8);
+      cg.addColorStop(0, "rgba(255,214,150,.5)");
+      cg.addColorStop(1, "rgba(40,60,120,.45)");
+      ctx.fillStyle = cg;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "source-over";
+    }
   }
 
   const vg = ctx.createRadialGradient(W / 2, H / 2, H * .3, W / 2, H / 2, Math.max(W, H) * .75);
@@ -2701,7 +2834,7 @@ function renderTitle() {
     const px = ((time * 40 + i * (W + 200) / parade.length) % (W + 200)) - 100;
     pixMon(ctx, SPECIES[id], px, H * .88, 70, { t: time + i }, 3);
   });
-  if (G.fx) {
+  if (G.fx && !glPostActive()) {
     ctx.globalCompositeOperation = "soft-light";
     const cg = ctx.createRadialGradient(W / 2, H * .4, H * .1, W / 2, H / 2, Math.max(W, H) * .8);
     cg.addColorStop(0, "rgba(255,214,150,.5)");
@@ -2731,6 +2864,15 @@ function frame(now) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = `rgba(6,8,14,${G.fade})`;
     ctx.fillRect(0, 0, W, H);
+  }
+
+  // post-traitement WebGL (bloom, DoF, grain, couleurs) si disponible
+  if (glPostActive()) {
+    GLFX.canvas.style.display = "block";
+    GLFX.render(time);
+    glPerfCheck(dt);
+  } else if (GLFX.canvas) {
+    GLFX.canvas.style.display = "none";
   }
 
   requestAnimationFrame(frame);

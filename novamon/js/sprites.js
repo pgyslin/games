@@ -16,7 +16,9 @@ function loadArt(path) {
   img.ready = false;
   img.onload = () => { img.ready = true; ART_V++; };
   img.onerror = () => {};
-  img.src = "assets/" + path;
+  // data URI embarquée si disponible (pas de « tainted canvas » en file://),
+  // sinon le fichier de assets/
+  img.src = (typeof ASSET_DATA !== "undefined" && ASSET_DATA[path]) || ("assets/" + path);
   return img;
 }
 const artOk = img => !!(img && img.ready && img.naturalWidth > 0);
