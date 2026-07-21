@@ -259,6 +259,48 @@ const SPECIES = {
     moves: [[1, "Éclat Glace"], [10, "Draco-Souffle"], [20, "Laser Glace"], [30, "Colère Draco"]],
     draw: { shape: "serpent", main: "#9fd8f0", belly: "#ffffff", accent: "#4a8ab5", feat: ["wings", "crystals"], big: 1.25 },
     desc: "On dit qu'il dort au fond du lac depuis l'ère glaciaire. Son souffle fige jusqu'aux cascades."
+  },
+  pyrolithe: {
+    id: "pyrolithe", name: "Pyrolithe", types: ["Feu", "Roche"],
+    base: { hp: 58, atk: 74, def: 72, spd: 44 }, catch: .2, xp: 128,
+    moves: [[1, "Flammèche"], [1, "Jet-Pierres"], [14, "Crocs Feu"], [22, "Éboulement"], [30, "Lance-Flammes"]],
+    draw: { shape: "quad", main: "#e0562c", belly: "#ffcf8a", accent: "#7a2a14", feat: ["tailFlame", "rocky"], big: 1.15 },
+    desc: "Cette salamandre des laves porte une carapace de basalte. Elle couve ses œufs dans la roche en fusion."
+  },
+  nagondin: {
+    id: "nagondin", name: "Nagondin", types: ["Poison", "Psy"],
+    base: { hp: 66, atk: 68, def: 60, spd: 62 }, catch: .16, xp: 138,
+    moves: [[1, "Dard-Venin"], [1, "Choc Mental"], [16, "Bombe Acide"], [24, "Psyko"], [32, "Colère Draco"]],
+    draw: { shape: "serpent", main: "#5aab6e", belly: "#e8f0c8", accent: "#7d55a8", feat: ["crest", "aura"], big: 1.2 },
+    desc: "Gardien mi-serpent des temples engloutis. Son regard hypnotique lit les intentions des voyageurs."
+  },
+  harfelie: {
+    id: "harfelie", name: "Harfélie", types: ["Vol", "Fée"],
+    base: { hp: 54, atk: 66, def: 52, spd: 78 }, catch: .28, xp: 96,
+    moves: [[1, "Tornade"], [1, "Vent Féérique"], [15, "Cru-Aile"], [23, "Éclat Magique"], [29, "Aéro-Lame"]],
+    draw: { shape: "bird", main: "#e8c26a", belly: "#fff3d0", accent: "#c86ba8", feat: ["wings", "crest"], big: 1.1 },
+    desc: "Mi-oiseau mi-fée, son chant matinal porte chance à qui l'entend. Elle niche au sommet des grands arbres."
+  },
+  ombraline: {
+    id: "ombraline", name: "Ombraline", types: ["Dragon", "Spectre"],
+    base: { hp: 74, atk: 92, def: 68, spd: 84 }, catch: .07, xp: 194,
+    moves: [[1, "Ombre Portée"], [1, "Draco-Souffle"], [28, "Ball'Ombre"], [34, "Colère Draco"]],
+    draw: { shape: "serpent", main: "#4a3f5e", belly: "#b0a0d0", accent: "#8a2a4a", feat: ["wings", "horns", "aura"], big: 1.35 },
+    desc: "Un dragon d'ombre qui ne surgit qu'aux nuits sans lune. Nul n'a jamais vu son ombre… car il en est une."
+  },
+  gargolem: {
+    id: "gargolem", name: "Gargolem", types: ["Roche", "Vol"],
+    base: { hp: 62, atk: 70, def: 82, spd: 50 }, catch: .18, xp: 134,
+    moves: [[1, "Jet-Pierres"], [1, "Tornade"], [18, "Cru-Aile"], [26, "Éboulement"], [32, "Aéro-Lame"]],
+    draw: { shape: "biped", main: "#8f96a2", belly: "#c4ccd6", accent: "#4a5262", feat: ["wings", "horns", "rocky"], big: 1.2 },
+    desc: "Statue de pierre le jour, il déploie ses ailes de granit dès la tombée de la nuit pour veiller sur les cités."
+  },
+  cerbrule: {
+    id: "cerbrule", name: "Cerbrûle", types: ["Feu", "Spectre"],
+    base: { hp: 60, atk: 84, def: 56, spd: 76 }, catch: .12, xp: 152,
+    moves: [[1, "Flammèche"], [1, "Ombre Portée"], [18, "Crocs Feu"], [26, "Ball'Ombre"], [32, "Lance-Flammes"]],
+    draw: { shape: "quad", main: "#b83a2c", belly: "#3a2018", accent: "#ff7a3c", feat: ["tailFlame", "earsPointy", "aura"], big: 1.15 },
+    desc: "Un molosse de braise et de cendres qui garderait le seuil des Enfers. Ses hurlements glacent malgré ses flammes."
   }
 };
 
@@ -266,7 +308,8 @@ const DEX_ORDER = [
   "flamizar", "pyroclast", "aquano", "torrentide", "feuillune", "sylvoria",
   "rongelec", "pioupiou", "rafalaile", "mousserond", "rocmite", "spectrio",
   "givrelin", "vipoison", "lucioline", "psylune", "bulleau", "dracelet", "dracelior",
-  "louveran", "scorpide", "meduline", "anguivolt", "phantomite", "glacidra"
+  "louveran", "scorpide", "meduline", "anguivolt", "phantomite", "glacidra",
+  "pyrolithe", "nagondin", "harfelie", "ombraline", "gargolem", "cerbrule"
 ];
 
 const STARTERS = ["flamizar", "aquano", "feuillune"];
@@ -414,7 +457,7 @@ const MAPS = {
       "T....;;;;....p...;;;;....T",
       "TTTTTTTTTTTTppppTTTTTTTTTT"
     ],
-    enc: { label: "Route 1", lv: [4, 7], table: [["rongelec", 25], ["pioupiou", 25], ["mousserond", 20], ["lucioline", 15], ["feuillune", 15]] },
+    enc: { label: "Route 1", lv: [4, 7], table: [["rongelec", 22], ["pioupiou", 22], ["mousserond", 18], ["lucioline", 13], ["feuillune", 13], ["harfelie", 12]] },
     exits: [
       { x: 12, y: 29, to: "kaelis", tx: 18, ty: 1, dir: "down" },
       { x: 13, y: 29, to: "kaelis", tx: 19, ty: 1, dir: "down" },
@@ -575,7 +618,7 @@ const MAPS = {
       "T..T..T......T.........T..T..T...T",
       "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
     ],
-    enc: { label: "Route 2 — Forêt Sombre", lv: [7, 10], table: [["vipoison", 20], ["psylune", 16], ["spectrio", 16], ["mousserond", 16], ["pioupiou", 12], ["louveran", 12], ["phantomite", 8]] },
+    enc: { label: "Route 2 — Forêt Sombre", lv: [7, 10], table: [["vipoison", 18], ["psylune", 14], ["spectrio", 14], ["mousserond", 14], ["pioupiou", 11], ["louveran", 11], ["phantomite", 8], ["cerbrule", 6], ["ombraline", 4]] },
     exits: [
       { x: 0, y: 9, to: "kaelis", tx: 38, ty: 16, dir: "left" },
       { x: 0, y: 10, to: "kaelis", tx: 38, ty: 17, dir: "left" },
@@ -866,11 +909,11 @@ const ZONES = {
   },
   rocher: {
     label: "Crêtes Rocheuses", lv: [4, 8],
-    table: [["rocmite", 38], ["givrelin", 25], ["rongelec", 20], ["scorpide", 17]]
+    table: [["rocmite", 32], ["givrelin", 22], ["rongelec", 17], ["scorpide", 15], ["pyrolithe", 8], ["gargolem", 6]]
   },
   foret: {
     label: "Forêt Murmurante", lv: [5, 9],
-    table: [["vipoison", 26], ["psylune", 21], ["pioupiou", 21], ["spectrio", 17], ["louveran", 15]]
+    table: [["vipoison", 24], ["psylune", 19], ["pioupiou", 19], ["spectrio", 16], ["louveran", 14], ["cerbrule", 8]]
   },
   lac: {
     label: "Lac Azuré", lv: [4, 9],
