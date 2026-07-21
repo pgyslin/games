@@ -42,6 +42,8 @@ const G = {
   lastHeal: { map: "kaelis", x: 6, y: 25 },
   steps: 0,
   muted: false,
+  volSfx: .75,             // volume des effets sonores (0..1)
+  volMus: .5,              // volume des musiques (0..1)
   fx: true,                // effets HD (profondeur de champ, étalonnage)
   view3d: true,            // vue "Paper 3D" (sol en perspective, sprites plats)
   fade: 0,
@@ -63,37 +65,158 @@ function setupMap() {
 }
 
 // ============================================================
-//  Sons (WebAudio, généré)
+//  Sons : effets CC0 (assets/audio/*.ogg, packs Kenney) joués via
+//  HTMLAudioElement (compatible file://), avec petits pools pour le
+//  ré-déclenchement rapide. Si un fichier manque, repli sur les
+//  anciens bips WebAudio. Musiques d'ambiance en boucle (J. Junkala).
 // ============================================================
 let AC = null;
 function beep(freq, dur, delay = 0, type = "square", vol = .12) {
-  if (G.muted) return;
+  if (G.muted || G.volSfx <= 0) return;
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     const o = AC.createOscillator(), g = AC.createGain();
     o.type = type; o.frequency.value = freq;
-    g.gain.setValueAtTime(vol, AC.currentTime + delay);
+    g.gain.setValueAtTime(vol * G.volSfx, AC.currentTime + delay);
     g.gain.exponentialRampToValueAtTime(.001, AC.currentTime + delay + dur);
     o.connect(g); g.connect(AC.destination);
     o.start(AC.currentTime + delay); o.stop(AC.currentTime + delay + dur + .02);
   } catch (e) { /* audio indisponible */ }
 }
-const SFX = {
+// anciens sons générés — utilisés si le fichier audio ne charge pas
+const SFX_BEEP = {
   select: () => beep(660, .06, 0, "square", .07),
   confirm: () => { beep(520, .07); beep(780, .09, .07); },
+  back: () => beep(420, .07, 0, "square", .06),
+  error: () => beep(180, .16, 0, "square", .1),
+  item: () => { beep(520, .07); beep(780, .09, .07); },
   hit: () => beep(160, .12, 0, "sawtooth", .16),
   superhit: () => { beep(200, .1, 0, "sawtooth", .18); beep(120, .14, .08, "sawtooth", .18); },
+  weakhit: () => beep(200, .1, 0, "sawtooth", .1),
   faint: () => { beep(300, .12); beep(200, .14, .1); beep(120, .2, .2); },
   throw: () => beep(480, .1, 0, "triangle", .1),
-  shakeB: () => beep(240, .08, 0, "square", .1),
-  catchOk: () => { beep(523, .1); beep(659, .1, .1); beep(784, .1, .2); beep(1046, .22, .3); },
+  shake: () => beep(240, .08, 0, "square", .1),
+  catch: () => { beep(523, .1); beep(659, .1, .1); beep(784, .1, .2); beep(1046, .22, .3); },
   breakout: () => { beep(400, .08); beep(300, .12, .08); },
   heal: () => { beep(660, .09); beep(880, .09, .09); beep(1100, .14, .18); },
   levelup: () => { beep(523, .08); beep(659, .08, .08); beep(784, .08, .16); beep(1046, .16, .24); },
   badge: () => { beep(392, .1); beep(523, .1, .1); beep(659, .1, .2); beep(784, .12, .3); beep(1046, .3, .42); },
-  run: () => { beep(700, .06); beep(500, .08, .06); },
-  encounter: () => { beep(300, .08); beep(360, .08, .08); beep(300, .08, .16); }
+  victory: () => { beep(523, .1); beep(659, .1, .1); beep(784, .18, .2); },
+  flee: () => { beep(700, .06); beep(500, .08, .06); },
+  encounter: () => { beep(300, .08); beep(360, .08, .08); beep(300, .08, .16); },
+  door: () => beep(360, .1, 0, "triangle", .08),
+  step0: () => {}, step1: () => {}, stepwood0: () => {}, stepwood1: () => {},
+  stepsand0: () => {}, stepsand1: () => {},
+  splash: () => beep(500, .08, 0, "triangle", .06),
+  moveFire: () => {}, moveWater: () => {}, moveElec: () => {}, moveNature: () => {}
 };
+
+const SND_POOL = {};
+function sfx(name, vol = 1, rate = 1) {
+  if (G.muted || G.volSfx <= 0) return;
+  let pool = SND_POOL[name];
+  if (!pool) {
+    pool = SND_POOL[name] = { i: 0, els: [], failed: false };
+    for (let k = 0; k < 3; k++) {
+      const a = new Audio("assets/audio/" + name + ".ogg");
+      a.preload = "auto";
+      a.addEventListener("error", () => { pool.failed = true; });
+      pool.els.push(a);
+    }
+  }
+  if (pool.failed) { (SFX_BEEP[name] || (() => {}))(); return; }
+  const a = pool.els[pool.i++ % pool.els.length];
+  try {
+    a.volume = Math.max(0, Math.min(1, vol * G.volSfx));
+    a.playbackRate = rate;
+    a.currentTime = 0;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { (SFX_BEEP[name] || (() => {}))(); }
+}
+
+const SFX = {
+  select: () => sfx("select", .8),
+  confirm: () => sfx("confirm", .8),
+  back: () => sfx("back", .7),
+  error: () => sfx("error", .7),
+  item: () => sfx("item", .9),
+  hit: () => sfx("hit", .9),
+  superhit: () => sfx("superhit", 1),
+  weakhit: () => sfx("weakhit", .8),
+  faint: () => sfx("faint", .9),
+  throw: () => sfx("throw", .8),
+  shakeB: () => sfx("shake", .9),
+  catchOk: () => sfx("catch", 1),
+  breakout: () => sfx("breakout", .9),
+  heal: () => sfx("heal", .9),
+  levelup: () => sfx("levelup", .8),
+  badge: () => sfx("badge", .9),
+  victory: () => sfx("victory", .8),
+  run: () => sfx("flee", .8),
+  encounter: () => sfx("encounter", .9),
+  door: () => sfx("door", .8),
+  splash: () => sfx("splash", .5),
+  step: () => {
+    // bruit de pas selon la tuile sous le héros
+    const t = tileAt(G.hero.x, G.hero.y);
+    const v = (G.steps % 2);
+    const base = (t === "b" || CM().theme === "interior") ? "stepwood" : (t === "s") ? "stepsand" : "step";
+    sfx(base + v, .32, .9 + Math.random() * .25);
+  },
+  attack: (type) => {
+    const m = { "Feu": "moveFire", "Eau": "moveWater", "Glace": "moveWater",
+      "Électrik": "moveElec", "Plante": "moveNature", "Fée": "moveNature",
+      "Poison": "moveNature", "Psy": "moveElec", "Spectre": "moveElec" }[type];
+    if (m) sfx(m, .5);
+  }
+};
+
+// ---------- Musiques d'ambiance (boucles) ----------
+const MUSIC = {
+  els: {}, want: null, cur: null, unlocked: false,
+  track(name) {
+    if (!this.els[name]) {
+      const a = new Audio("assets/audio/" + name + ".ogg");
+      a.loop = true;
+      a.preload = "auto";
+      a.addEventListener("error", () => { a.failed = true; });
+      this.els[name] = a;
+    }
+    return this.els[name];
+  },
+  play(name) {
+    this.want = name;
+    this.apply();
+  },
+  apply() {
+    const vol = G.muted ? 0 : G.volMus;
+    if (this.cur && (this.cur !== this.want || vol <= 0)) {
+      const el = this.track(this.cur);
+      el.pause();
+      this.cur = null;
+    }
+    if (!this.want || vol <= 0) return;
+    const el = this.track(this.want);
+    if (el.failed) return;
+    el.volume = Math.min(1, vol);
+    if (this.cur !== this.want) {
+      try { el.currentTime = 0; } catch (e) {}
+      const p = el.play();
+      if (p && p.catch) p.catch(() => { /* autoplay bloqué : retenté au 1er geste */ });
+      this.cur = this.want;
+    }
+  }
+};
+// l'autoplay est bloqué avant le premier geste : on retente alors
+for (const evt of ["pointerdown", "keydown", "touchstart"]) {
+  window.addEventListener(evt, () => {
+    if (MUSIC.unlocked) return;
+    MUSIC.unlocked = true;
+    const el = MUSIC.want ? MUSIC.track(MUSIC.want) : null;
+    if (el && el.paused) { MUSIC.cur = null; MUSIC.apply(); }
+  }, { capture: true });
+}
 
 // ============================================================
 //  Création / stats des Novamon
@@ -259,6 +382,7 @@ function updateWorld(dt) {
       h.px = h.x; h.py = h.y;
       h.moving = false; h.prog = 0;
       G.steps++;
+      SFX.step();
       onArrive();
     } else {
       h.px = h.x + (h.tx - h.x) * h.prog;
@@ -272,6 +396,7 @@ function updateWorld(dt) {
 async function switchMap(to, tx, ty, dir) {
   if (G.transition) return;
   G.transition = true;
+  SFX.door();
   await tween(G, "fade", G.fade, 1, 240);
   G.mapId = to;
   const h = G.hero;
@@ -296,7 +421,7 @@ function onArrive() {
   if (pk) {
     G.taken[pk.id] = true;
     G.items[pk.item] += pk.n;
-    SFX.confirm();
+    SFX.item();
     toast(`Vous trouvez ${pk.n}× ${ITEMS[pk.item].name} !`);
     updateHud(); saveGame();
     return;
@@ -417,6 +542,7 @@ function freshBattleState(enemy, zone) {
 
 async function startBattle(zone) {
   SFX.encounter();
+  MUSIC.play("music_battle");
   const wild = rollEncounter(zone);
   markSeen(wild.sp);
   B = freshBattleState(wild, zone);
@@ -438,6 +564,7 @@ async function trainerInteract(npc) {
 
 async function startTrainerBattle(npc) {
   SFX.encounter();
+  MUSIC.play("music_battle");
   const team = npc.team.map(([id, lv]) => createMon(id, lv));
   B = freshBattleState(team[0], { label: CM().label });
   B.trainer = npc;
@@ -603,6 +730,7 @@ async function doMove(attacker, defender, mv, allyAttacks) {
     return;
   }
   const dir = allyAttacks ? 1 : -1;
+  SFX.attack(m.type);
   await tween(attAnim, "dx", 0, dir * 46, 130);
   const { dmg, eff } = calcDamage(attacker, defender, mv);
   if (eff === 0) {
@@ -615,7 +743,7 @@ async function doMove(attacker, defender, mv, allyAttacks) {
   burst(tx, ty, TYPES[m.type].c, eff > 1 ? 26 : 16, eff > 1 ? 4.4 : 3);
   defAnim.flash = 1;
   shake = eff > 1 ? 14 : 8;
-  (eff > 1 ? SFX.superhit : SFX.hit)();
+  (eff > 1 ? SFX.superhit : eff < 1 ? SFX.weakhit : SFX.hit)();
   tween(defAnim, "flash", 1, 0, 340);
   tween(attAnim, "dx", attAnim.dx, 0, 180);
   defender.hp = Math.max(0, defender.hp - dmg);
@@ -716,6 +844,7 @@ async function tryCapture(kind) {
 async function trainerVictory() {
   const npc = B.trainer;
   hideMenus();
+  SFX.victory();
   for (const l of npc.win) await say(l, npc.name);
   if (npc.reward) {
     G.items[npc.reward.item] += npc.reward.n;
@@ -857,6 +986,7 @@ function endBattle() {
   aCard.style.display = "none";
   B = null;
   G.mode = "world";
+  MUSIC.play("music_explore");
   updateHud();
   saveGame();
 }
@@ -963,20 +1093,30 @@ function openBagModal() {
 }
 
 function openMenuModal() {
+  const pct = v => Math.round(v * 100) + " %";
   let html = `<h2>⚙️ Menu</h2>
     <div style="display:flex;flex-direction:column;gap:8px">
       <button id="m-save">💾 Sauvegarder</button>
       <button id="m-view">${G.view3d ? "🎬 Vue : Paper 3D" : "🎬 Vue : 2D classique"}</button>
       <button id="m-fx">${G.fx ? "✨ Effets HD : activés" : "✨ Effets HD : désactivés"}</button>
       <button id="m-sound">${G.muted ? "🔇 Son : coupé" : "🔊 Son : activé"}</button>
+      <button id="m-volsfx" ${G.muted ? "disabled style='opacity:.4'" : ""}>🎚️ Effets sonores : ${pct(G.volSfx)}</button>
+      <button id="m-volmus" ${G.muted ? "disabled style='opacity:.4'" : ""}>🎵 Musique : ${pct(G.volMus)}</button>
       <button id="m-help">❓ Aide</button>
       <button class="danger" id="m-reset">🗑️ Recommencer à zéro</button>
     </div>`;
   openModal(html);
+  const cycle = v => { const steps = [0, .25, .5, .75, 1]; return steps[(steps.findIndex(s => Math.abs(s - v) < .01) + 1) % steps.length]; };
   document.getElementById("m-save").addEventListener("click", () => { saveGame(); toast("Partie sauvegardée ✓"); closeModal(); });
   document.getElementById("m-view").addEventListener("click", () => { G.view3d = !G.view3d; saveGame(); openMenuModal(); });
   document.getElementById("m-fx").addEventListener("click", () => { G.fx = !G.fx; saveGame(); openMenuModal(); });
-  document.getElementById("m-sound").addEventListener("click", () => { G.muted = !G.muted; saveGame(); openMenuModal(); });
+  document.getElementById("m-sound").addEventListener("click", () => { G.muted = !G.muted; MUSIC.apply(); saveGame(); openMenuModal(); });
+  document.getElementById("m-volsfx").addEventListener("click", () => {
+    G.volSfx = cycle(G.volSfx); SFX.confirm(); saveGame(); openMenuModal();
+  });
+  document.getElementById("m-volmus").addEventListener("click", () => {
+    G.volMus = cycle(G.volMus); MUSIC.apply(); saveGame(); openMenuModal();
+  });
   document.getElementById("m-help").addEventListener("click", () => {
     openModal(`<h2>❓ Aide</h2><p style="line-height:1.7;font-size:14px">
       • Déplacement : ZQSD / flèches — Maj pour courir.<br>
@@ -1032,6 +1172,7 @@ function saveGame() {
   const data = {
     team: G.team, box: G.box, items: G.items, dex: G.dex, taken: G.taken,
     flags: G.flags, steps: G.steps, muted: G.muted, fx: G.fx, view3d: G.view3d,
+    volSfx: G.volSfx, volMus: G.volMus,
     badges: G.badges, mapId: G.mapId, lastHeal: G.lastHeal,
     hero: { x: G.hero.x, y: G.hero.y, dir: G.hero.dir }
   };
@@ -1050,6 +1191,8 @@ function loadGame() {
     G.badges = d.badges || {};
     G.steps = d.steps || 0;
     G.muted = !!d.muted;
+    G.volSfx = d.volSfx !== undefined ? d.volSfx : .75;
+    G.volMus = d.volMus !== undefined ? d.volMus : .5;
     G.fx = d.fx !== undefined ? !!d.fx : true;
     G.view3d = d.view3d !== undefined ? !!d.view3d : true;
     G.mapId = (d.mapId && MAPS[d.mapId]) ? d.mapId : "kaelis";
@@ -2235,6 +2378,7 @@ document.getElementById("btn-new").addEventListener("click", () => {
   setupMap();
   banner(CM().label);
   SFX.confirm();
+  MUSIC.play("music_explore");
   updateHud();
   (async () => {
     await say("Bienvenue à Kaelis ! La Professeure Aralia t'attend devant son laboratoire (la maison au toit bleu, à droite).", "");
@@ -2249,10 +2393,12 @@ document.getElementById("btn-continue").addEventListener("click", () => {
   setupMap();
   banner(CM().label);
   SFX.confirm();
+  MUSIC.play("music_explore");
   updateHud();
   toast("Partie chargée ✓");
 });
 
 setupMap();
 updateHud();
+MUSIC.play("music_title");
 requestAnimationFrame(frame);
