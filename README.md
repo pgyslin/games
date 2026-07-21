@@ -6,7 +6,7 @@ Collection personnelle de jeux et de sites web.
 
 | Jeu | Genre | Description | Lien |
 |---|---|---|---|
-| **Novamon** | RPG 2D-HD | RPG de capture de créatures : 19 fakemons originaux, combats au tour par tour, évolutions, Novadex, sauvegarde. | [`novamon/`](novamon/) — ouvrir `index.html` |
+| **Novamon** | RPG 2D-HD | RPG de capture de créatures : 19 fakemons, 9 cartes (routes, villes), 3 arènes et badges, dresseurs, évolutions, Novadex, rendu HD-2D (profondeur de champ, pixel-art, éclairage). | [`novamon/`](novamon/) — ouvrir `index.html` |
 | **Voxarion** | — | _À compléter._ | _À ajouter_ |
 | **Stellar Drift** | — | _À compléter._ | _À ajouter_ |
 

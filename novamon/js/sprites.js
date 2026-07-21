@@ -113,16 +113,19 @@ function drawMon(ctx, sp, cx, cy, size, opts = {}) {
     const flap = Math.sin(t * 5) * 8;
     for (const side of [-1, 1]) {
       ctx.save();
-      ctx.translate(side * 16, -52);
-      ctx.rotate(side * (-.5 - flap * .02));
+      ctx.translate(side * 14, -42);
+      ctx.rotate(side * (-.12 - flap * .015));
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.quadraticCurveTo(side * 34, -28 - flap, side * 46, -6);
-      ctx.quadraticCurveTo(side * 36, 4, side * 20, 2);
-      ctx.quadraticCurveTo(side * 10, 8, 0, 0);
+      ctx.quadraticCurveTo(side * 26, -20 - flap, side * 48, -14);
+      ctx.quadraticCurveTo(side * 44, -2, side * 30, 2);
+      ctx.quadraticCurveTo(side * 14, 6, 0, 0);
       ctx.fillStyle = shade(A, 1.1);
       ctx.fill();
       ctx.lineWidth = 2.4; ctx.strokeStyle = OUT; ctx.stroke();
+      // membrure
+      ctx.strokeStyle = shade(A, .8); ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(side * 8, -2); ctx.quadraticCurveTo(side * 26, -12 - flap * .5, side * 42, -10); ctx.stroke();
       ctx.restore();
     }
   }
@@ -477,16 +480,47 @@ function drawNpc(ctx, npc, cx, cy, size, t) {
     return;
   }
   const prof = npc.kind === "prof";
-  const robe = prof ? "#e9edf2" : "#5e9c58";
-  const robeOut = prof ? "#93a0ad" : "#33612f";
+  const trainer = npc.kind === "trainer";
+  const leader = npc.kind === "leader";
+  const robe = leader ? (npc.robe || "#8a5ac4") : prof ? "#e9edf2" : trainer ? "#c4553a" : "#5e9c58";
+  const robeOut = shade(robe, .55);
   ctx.beginPath(); ctx.ellipse(0, 0, 21, 7, 0, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(20,30,25,.3)"; ctx.fill();
+  // cape du chef d'arène
+  if (leader) {
+    ctx.beginPath();
+    ctx.moveTo(-16, -46);
+    ctx.quadraticCurveTo(-26 - Math.sin(t * 2) * 2, -20, -18, -2);
+    ctx.lineTo(18, -2);
+    ctx.quadraticCurveTo(26 + Math.sin(t * 2) * 2, -20, 16, -46);
+    ctx.closePath();
+    ctx.fillStyle = shade(robe, .7); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = robeOut; ctx.stroke();
+  }
   orb(ctx, 0, -26, 18, 25, robe, robeOut);
+  if (trainer) orb(ctx, 0, -20, 10, 12, "#f0e0c0", null);
+  if (leader) { // emblème
+    orb(ctx, 0, -34, 6, 6, "#ffd98a", "#a8781e");
+  }
   orb(ctx, 0, -58, 15, 14, "#f5c9a2", "#9c7350");
+  // cheveux / couvre-chef
   ctx.beginPath();
   ctx.arc(0, -61, 14.6, Math.PI * .95, Math.PI * 2.05);
-  ctx.fillStyle = prof ? "#b9c4cc" : "#6b4a2e";
+  ctx.fillStyle = prof ? "#b9c4cc" : leader ? shade(robe, .8) : trainer ? "#4a3626" : "#6b4a2e";
   ctx.fill();
+  if (trainer) { // casquette
+    ctx.beginPath();
+    ctx.arc(0, -64, 13.6, Math.PI, Math.PI * 2);
+    ctx.fillStyle = "#3d8a48"; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = "#1f4a26"; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, -64, 14.5, 3, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "#2c6636"; ctx.fill();
+  }
+  if (leader) { // diadème
+    ctx.beginPath();
+    ctx.moveTo(-10, -70); ctx.lineTo(0, -78); ctx.lineTo(10, -70);
+    ctx.strokeStyle = "#ffd98a"; ctx.lineWidth = 3; ctx.stroke();
+  }
   monEye(ctx, -5.5, -58, 3, "#555");
   monEye(ctx, 5.5, -58, 3, "#555");
   mouthSmile(ctx, 0, -51, 3);
@@ -497,6 +531,38 @@ function drawNpc(ctx, npc, cx, cy, size, t) {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+// ============================================================
+//  Rendu "HD-2D" : les personnages et créatures sont dessinés en
+//  basse résolution puis ré-agrandis au plus proche voisin, pour
+//  obtenir des sprites pixel-art nets sur des décors adoucis.
+// ============================================================
+const PIXBUF = document.createElement("canvas");
+PIXBUF.width = PIXBUF.height = 192;
+const PIXCTX = PIXBUF.getContext("2d");
+
+// cb(bufCtx, feetX, feetY, taille) dessine le sprite dans le tampon.
+// destH = hauteur voulue à l'écran ; pixel = taille d'un "pixel" du sprite.
+function pixelSprite(mainCtx, cb, cx, cy, destH, pixel) {
+  const bsize = Math.max(10, Math.round(destH / pixel));
+  const k = destH / bsize;
+  PIXCTX.clearRect(0, 0, 192, 192);
+  cb(PIXCTX, 96, 186, bsize);
+  const prev = mainCtx.imageSmoothingEnabled;
+  mainCtx.imageSmoothingEnabled = false;
+  mainCtx.drawImage(PIXBUF, 0, 0, 192, 192, cx - 96 * k, cy - 186 * k, 192 * k, 192 * k);
+  mainCtx.imageSmoothingEnabled = prev;
+}
+
+function pixMon(ctx, sp, cx, cy, size, opts = {}, pixel = 3) {
+  pixelSprite(ctx, (c, x, y, s) => drawMon(c, sp, x, y, s, opts), cx, cy, size, pixel);
+}
+function pixHero(ctx, cx, cy, size, dir, phase, t, pixel = 2) {
+  pixelSprite(ctx, (c, x, y, s) => drawHero(c, x, y, s, dir, phase, t), cx, cy, size, pixel);
+}
+function pixNpc(ctx, npc, cx, cy, size, t, pixel = 2) {
+  pixelSprite(ctx, (c, x, y, s) => drawNpc(c, npc, x, y, s, t), cx, cy, size, pixel);
 }
 
 // --- Novaball ----------------------------------------------------------

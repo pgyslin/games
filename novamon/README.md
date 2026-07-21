@@ -1,8 +1,9 @@
 # 🐉 Novamon — RPG 2D-HD
 
-Un RPG de capture de créatures dans le style des jeux de monstres classiques, entièrement contenu
-dans des fichiers HTML/JS — **aucune dépendance, aucun asset externe** : tous les sprites sont
-dessinés par code (rendu vectoriel « 2D-HD » : dégradés, lumières, ombres, animations).
+Un RPG de capture de créatures dans le style des jeux de monstres classiques, avec un rendu
+« HD-2D » inspiré d'Octopath Traveler : sprites pixel-art nets sur des décors adoucis,
+profondeur de champ, lumière chaude et lucioles. Entièrement contenu dans des fichiers
+HTML/JS — **aucune dépendance, aucun asset externe** : tous les sprites sont dessinés par code.
 
 ## ▶️ Jouer
 
@@ -21,21 +22,38 @@ Ouvrir simplement `index.html` dans un navigateur. C'est tout.
 | Menu | Échap |
 | Mobile | Croix directionnelle + bouton E à l'écran |
 
+## 🗺️ La région de Kaelis
+
+9 cartes connectées, chacune avec ses rencontres et son ambiance :
+
+- **Bourg Kaelis** — le village de départ (labo de la Prof. Aralia, lac, plaine, forêt, crêtes) ;
+- **Route 1** → **Verdicité**, la ville-jardin et son **arène Plante** (Cheffe Sylvia) ;
+- **Route 2 — Forêt Sombre** → **Rocheville** et son **arène Roche** (Chef Magnus) ;
+- **Route 3 — Prés du Lac** → **Cité Azur**, la cité côtière et son **arène Eau** (Cheffe Marina).
+
+Sur les routes, des **dresseurs** vous défient (parlez-leur avec E) : combats en équipe,
+récompenses, et **3 badges** à conquérir auprès des chefs d'arène.
+
 ## ✨ Contenu
 
-- **Région de Kaelis** : village, plaine, lac, forêt, crêtes rocheuses — chaque zone a sa propre
-  table de rencontres et son niveau de difficulté.
-- **19 fakemons originaux** répartis sur 13 types (Feu, Eau, Plante, Électrik, Spectre, Dragon…),
-  avec table des types, STAB, stats, montée de niveau, apprentissage d'attaques et **évolutions**.
-- **Combats au tour par tour** : attaques, sac, changement de Novamon, fuite, IA ennemie qui
-  choisit ses attaques selon leur efficacité.
-- **Capture** à la Novaball (le taux dépend des PV restants et de la rareté de l'espèce),
-  équipe de 6 + boîte de stockage.
-- **Novadex** : encyclopédie des espèces vues et capturées, avec descriptions.
-- **Centre de soins**, objets à ramasser sur la carte, starter à choisir chez la Prof. Aralia.
-- **Sauvegarde automatique** (localStorage) : bouton « Continuer » sur l'écran titre.
-- Effets « 2D-HD » : cycle jour/nuit, eau animée, hautes herbes qui ondulent, particules,
-  tremblement d'écran, vignettage, éclairage doux.
+- **19 fakemons originaux** répartis sur 13 types, avec table des types, STAB, stats,
+  montée de niveau, apprentissage d'attaques et **évolutions**.
+- **Combats au tour par tour** : sauvages et dresseurs (équipes multiples, fuite et capture
+  interdites contre un dresseur), IA qui choisit ses attaques selon leur efficacité.
+- **Capture** à la Novaball (taux selon PV restants et rareté), équipe de 6 + boîte.
+- **Novadex**, centre de soins dans chaque ville (point de réapparition), objets à ramasser,
+  starter à choisir, **sauvegarde automatique** (localStorage).
+
+## 🎨 Rendu « HD-2D »
+
+- Sprites **pixel-art** : personnages et créatures rendus en basse résolution puis ré-agrandis
+  au plus proche voisin (pixels nets sur décors doux) ;
+- **Profondeur de champ** tilt-shift (haut/bas de l'écran adoucis) ;
+- **Étalonnage cinématique** (centre chaud, bords froids), vignettage, rayons de soleil ;
+- **Lampadaires** avec halos, fenêtres éclairées la nuit, **lucioles**, fontaines animées ;
+- Cycle **jour/nuit**, eau animée, hautes herbes qui ondulent, ombres portées des arbres ;
+- Arrière-plans de combat adoucis (bokeh) avec sprites nets au premier plan ;
+- Le tout désactivable dans le menu (⚙️ → « Effets HD ») pour les petites machines.
 
 ## 🎨 Ajouter ses propres sprites ou créatures
 

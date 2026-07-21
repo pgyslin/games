@@ -1,5 +1,5 @@
 // ============================================================
-//  NOVAMON — Données du jeu : types, attaques, espèces, carte
+//  NOVAMON — Données du jeu : types, attaques, espèces, monde
 // ============================================================
 "use strict";
 
@@ -79,8 +79,6 @@ const MOVES = {
 };
 
 // ---------- Espèces (fakemons originaux) ----------
-// base : stats de base ; catch : taux de capture (0-1) ; evolve : {to, level}
-// draw : paramètres du rendu procédural (voir sprites.js)
 const SPECIES = {
   flamizar: {
     id: "flamizar", name: "Flamizar", types: ["Feu"],
@@ -238,62 +236,586 @@ const ITEMS = {
   superpotion: { name: "Super Potion",   desc: "Restaure 60 PV.",               heal: 60 }
 };
 
-// ---------- Carte ----------
-// . herbe   , fleurs   ; hautes herbes (rencontres)   T arbre   w eau
-// p chemin  s sable (rencontres lac)  r rocher  b ponton
-// h maison  H centre de soins  L laboratoire
-const MAP_ROWS = [
-  "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
-  "T...;;;;;....;;;;;;;;....T..rr..rrr.rr.T",
-  "T...;;;;;...;;;;;;;;;;...T...r.;;;;.r..T",
-  "T.T.;;;;;...;;;;;;;;;;...T....;;;;..r..T",
-  "T.TT........;;;;;;;;.....T...r.;;;..r..T",
-  "T..T....,,....;;;;.......T....rr...r...T",
-  "T.......,,,..............T......r......T",
-  "T..sss....,,......................T....T",
-  "T.sswws.......ppppppppppppp....T.......T",
-  "T.swwwws......p...........p..TTT..;;;..T",
-  "Tswwwwwws.....p...........p...T..;;;;..T",
-  "Tswwwwwwsb....p...........p..T...;;;;..T",
-  "Tswwwwwws.....p...........p.TT....;;;..T",
-  "T.swwwws..,,..p...........p..T.........T",
-  "T.sswss..,,,..p...........p...TTT.T....T",
-  "T..sss...,,...p...........p..T..T..T...T",
-  "T...;;........p...........p............T",
-  "T..;;;;.......p...........p...;;;..TT..T",
-  "T..;;;;.......p...........p...;;;......T",
-  "T...;;........p...........p..;;;;..T...T",
-  "T.............ppppppppppppp............T",
-  "T..T...T............p..............TT..T",
-  "T.TT......h...h.....p.....h...h....T...T",
-  "T.T.................p..................T",
-  "T.....H.............p.........L....T...T",
-  "T...................p..............TT..T",
-  "T.......,,,.........p.......,,,........T",
-  "T........,..........p........,.........T",
-  "T......................................T",
-  "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
-];
-const MAPW = 40, MAPH = 30;
-// Normalisation : largeur fixe + bordure d'arbres garantie
-const MAP = MAP_ROWS.map((row, y) => {
-  const r = row.slice(0, MAPW).padEnd(MAPW, ".").split("");
-  for (let x = 0; x < MAPW; x++) {
-    if (x === 0 || x === MAPW - 1 || y === 0 || y === MAPH - 1) r[x] = "T";
-  }
-  return r;
-});
+// ---------- Badges ----------
+const BADGES = {
+  feuille: { name: "Badge Feuille", icon: "🌿" },
+  roc:     { name: "Badge Roc",     icon: "🪨" },
+  vague:   { name: "Badge Vague",   icon: "🌊" }
+};
 
-const SOLID_TILES = new Set(["T", "w", "r", "h", "H", "L"]);
+// ============================================================
+//  Monde : cartes, PNJ, dresseurs, arènes
+// ============================================================
+// Légende des tuiles :
+// . herbe/sol   , fleurs   ; hautes herbes   T arbre   w eau   p chemin
+// s sable   r rocher   b ponton   h maison   H centre de soins   L labo
+// G mur d'arène   D porte d'arène   ! lampadaire   F fontaine
+// # mur intérieur   c tapis d'arène   % pot de plante (décor intérieur)
+
+const SOLID_TILES = new Set(["T", "w", "r", "h", "H", "L", "G", "!", "F", "#", "%"]);
 const ENCOUNTER_TILES = new Set([";", "s"]);
 
-function tileAt(x, y) {
-  if (x < 0 || y < 0 || x >= MAPW || y >= MAPH) return "T";
-  return MAP[y][x];
+const MAPS = {
+
+  // ---------- Bourg Kaelis (départ) ----------
+  kaelis: {
+    label: "Bourg Kaelis", theme: "outdoor",
+    rows: [
+      "TTTTTTTTTTTTTTTTTTppppTTTTTTTTTTTTTTTTTT",
+      "T...;;;;;....;;;;;;;;....T..rr..rrr.rr.T",
+      "T...;;;;;...;;;;;;;;;;...T...r.;;;;.r..T",
+      "T.T.;;;;;...;;;;;;;;;;...T....;;;;..r..T",
+      "T.TT........;;;;;;;;.....T...r.;;;..r..T",
+      "T..T....,,....;;;;.......T....rr...r...T",
+      "T.......,,,..............T......r......T",
+      "T..sss....,,......................T....T",
+      "T.sswws.......ppppppppppppp....T.......T",
+      "T.swwwws......p...........p..TTT..;;;..T",
+      "Tswwwwwws.....p...........p...T..;;;;..T",
+      "Tswwwwwwsb....p...........p..T...;;;;..T",
+      "Tswwwwwws.....p...........p.TT....;;;..T",
+      "T.swwwws..,,..p...........p..T.........T",
+      "T.sswss..,,,..p...........p...TTT.T....T",
+      "T..sss...,,...p...........p..T..T..T...T",
+      "T...;;........p...........p............p",
+      "T..;;;;.......p...........p...;;;......p",
+      "T..;;;;.......p...........p...;;;......T",
+      "T...;;........p...........p..;;;;..T...T",
+      "T.............ppppppppppppp............T",
+      "T..T...T............p..............TT..T",
+      "T.TT......h...h.....p.....h...h....T...T",
+      "T.T..............!..p..!...............T",
+      "T.....H.............p.........L....T...T",
+      "T...................p..............TT..T",
+      "T.......,,,.........p.......,,,........T",
+      "T........,..........p........,.........T",
+      "T......................................T",
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+    ],
+    useZones: true,
+    exits: [
+      { x: 18, y: 0, to: "route1", tx: 12, ty: 28, dir: "up" },
+      { x: 19, y: 0, to: "route1", tx: 13, ty: 28, dir: "up" },
+      { x: 20, y: 0, to: "route1", tx: 14, ty: 28, dir: "up" },
+      { x: 21, y: 0, to: "route1", tx: 15, ty: 28, dir: "up" },
+      { x: 39, y: 16, to: "route2", tx: 1, ty: 9, dir: "right" },
+      { x: 39, y: 17, to: "route2", tx: 1, ty: 10, dir: "right" }
+    ],
+    npcs: [
+      {
+        x: 29, y: 25, kind: "prof", name: "Prof. Aralia",
+        lines: ["Les hautes herbes regorgent de Novamon sauvages : affaiblis-les avant de lancer une Novaball !",
+          "La sortie nord mène à la Route 1 et à Verdicité. Sa cheffe d'arène, Sylvia, attend les jeunes dresseurs !"]
+      },
+      {
+        x: 11, y: 22, kind: "villager", name: "Habitante",
+        lines: ["Le centre de soins à l'ouest du village remet ton équipe sur pied gratuitement.",
+          "On dit qu'un dragon très rare vit près du Lac Azuré…"]
+      },
+      {
+        x: 24, y: 21, kind: "villager", name: "Voyageur",
+        lines: ["Trois arènes t'attendent : Verdicité au nord, Rocheville à l'est, et Cité Azur sur la côte.",
+          "Les chefs d'arène remettent un badge aux dresseurs qui les battent !"]
+      },
+      {
+        x: 16, y: 21, kind: "sign", name: "Panneau",
+        lines: ["Bourg Kaelis — Nord : Route 1 (Verdicité) • Est : Route 2 (Rocheville) • Ouest : Lac Azuré"]
+      },
+      {
+        x: 8, y: 24, kind: "sign", name: "Panneau",
+        lines: ["Centre de soins — Placez-vous devant et appuyez sur E pour soigner votre équipe."]
+      }
+    ],
+    pickups: [
+      { id: "k1", x: 4,  y: 17, item: "ball",        n: 3 },
+      { id: "k2", x: 35, y: 2,  item: "potion",      n: 2 },
+      { id: "k3", x: 34, y: 18, item: "ball",        n: 3 },
+      { id: "k4", x: 2,  y: 27, item: "superball",   n: 2 },
+      { id: "k5", x: 36, y: 10, item: "superpotion", n: 1 },
+      { id: "k6", x: 3,  y: 7,  item: "potion",      n: 2 }
+    ]
+  },
+
+  // ---------- Route 1 (vers Verdicité) ----------
+  route1: {
+    label: "Route 1", theme: "outdoor",
+    rows: [
+      "TTTTTTTTTTTTppppTTTTTTTTTT",
+      "T....;;;;...p..p......;;.T",
+      "T.;;.;;;;...p..p.;;;..;;.T",
+      "T.;;........p..p.;;;.....T",
+      "T.;;...T....pppp.........T",
+      "T......T......p....T.T...T",
+      "T..,,..TT.....p....T.....T",
+      "T..,,......;;;p;;;.......T",
+      "T.....;;;..;;;p;;;...;;..T",
+      "T.;;..;;;.....p......;;..T",
+      "T.;;..........p..........T",
+      "T....T...ppppppppp..T....T",
+      "T...TT...p.......p.TT....T",
+      "T........p.......p.......T",
+      "T..;;;...p.......p...;;;.T",
+      "T..;;;...p.......p...;;;.T",
+      "T........p.......p.......T",
+      "T....;;..p.......p..;;...T",
+      "T........ppppppppp.......T",
+      "T............p...........T",
+      "T...,,,......p......,,...T",
+      "T..;;;;......p......;;;..T",
+      "T..;;;;......p......;;;..T",
+      "T............p...........T",
+      "T....T.......p.....T.T...T",
+      "T...TT.......p......TT...T",
+      "T............p...........T",
+      "T....;;;;....p...;;;;....T",
+      "T....;;;;....p...;;;;....T",
+      "TTTTTTTTTTTTppppTTTTTTTTTT"
+    ],
+    enc: { label: "Route 1", lv: [4, 7], table: [["rongelec", 25], ["pioupiou", 25], ["mousserond", 20], ["lucioline", 15], ["feuillune", 15]] },
+    exits: [
+      { x: 12, y: 29, to: "kaelis", tx: 18, ty: 1, dir: "down" },
+      { x: 13, y: 29, to: "kaelis", tx: 19, ty: 1, dir: "down" },
+      { x: 14, y: 29, to: "kaelis", tx: 20, ty: 1, dir: "down" },
+      { x: 15, y: 29, to: "kaelis", tx: 21, ty: 1, dir: "down" },
+      { x: 12, y: 0, to: "verdicite", tx: 13, ty: 22, dir: "up" },
+      { x: 13, y: 0, to: "verdicite", tx: 14, ty: 22, dir: "up" },
+      { x: 14, y: 0, to: "verdicite", tx: 14, ty: 22, dir: "up" },
+      { x: 15, y: 0, to: "verdicite", tx: 15, ty: 22, dir: "up" }
+    ],
+    npcs: [
+      {
+        x: 8, y: 13, kind: "trainer", id: "r1t1", name: "Gamin Théo",
+        pre: ["Hé ! Mes Novamon sont les plus rapides de la route !"],
+        team: [["pioupiou", 5], ["rongelec", 6]],
+        win: ["Waouh, t'es trop fort !"],
+        post: ["Un jour je battrai la cheffe Sylvia… quand j'aurai fini mes devoirs."],
+        reward: { item: "potion", n: 1 }
+      },
+      {
+        x: 18, y: 16, kind: "trainer", id: "r1t2", name: "Fleuriste Lina",
+        pre: ["Mes petits chéris adorent le soleil… et les combats !"],
+        team: [["mousserond", 6], ["feuillune", 6]],
+        win: ["Oh ! Mes chéris ont perdu…"],
+        post: ["La cheffe Sylvia n'utilise que des Novamon Plante. Le Feu et le Vol l'embêtent bien !"],
+        reward: { item: "ball", n: 2 }
+      },
+      { x: 16, y: 4, kind: "sign", name: "Panneau", lines: ["Route 1 — Nord : Verdicité et son arène Plante. Sud : Bourg Kaelis."] }
+    ],
+    pickups: [
+      { id: "r1p1", x: 4, y: 20, item: "potion", n: 2 },
+      { id: "r1p2", x: 22, y: 27, item: "superball", n: 1 }
+    ]
+  },
+
+  // ---------- Verdicité (arène Plante) ----------
+  verdicite: {
+    label: "Verdicité", theme: "city",
+    rows: [
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "T..............................T",
+      "T...h...h.....GDG......h...h...T",
+      "T..............................T",
+      "T....!....ppppppppp....!.......T",
+      "T.........p.......p............T",
+      "T..h......p.......p.......h....T",
+      "T.........p...F...p............T",
+      "T..,,.....p.......p.....,,,....T",
+      "T..,,.....ppppppppp.....,,,....T",
+      "T.............p...............pp",
+      "T.............p...............pp",
+      "T..h..........p.........h......T",
+      "T....!........p...........!....T",
+      "T...H.........p................T",
+      "T.............p......,,,.......T",
+      "T..,,,........p......,,,.......T",
+      "T.............p................T",
+      "T....!........p...........!....T",
+      "T.............p................T",
+      "T....,,.......p.......,,.......T",
+      "T.............p................T",
+      "T.............p................T",
+      "TTTTTTTTTTTTTpppTTTTTTTTTTTTTTTT"
+    ],
+    exits: [
+      { x: 13, y: 22, to: "route1", tx: 12, ty: 1, dir: "down" },
+      { x: 14, y: 22, to: "route1", tx: 14, ty: 1, dir: "down" },
+      { x: 15, y: 22, to: "route1", tx: 15, ty: 1, dir: "down" },
+      { x: 15, y: 2, to: "gym1", tx: 7, ty: 11, dir: "up" },
+      { x: 31, y: 10, to: "route3", tx: 1, ty: 10, dir: "right" },
+      { x: 31, y: 11, to: "route3", tx: 1, ty: 11, dir: "right" }
+    ],
+    npcs: [
+      {
+        x: 22, y: 12, kind: "villager", name: "Jardinier",
+        lines: ["Bienvenue à Verdicité ! L'arène est au nord de la place, porte centrale.",
+          "La cheffe Sylvia est redoutable… ses Novamon Plante craignent le Feu, le Vol et la Glace."]
+      },
+      {
+        x: 17, y: 15, kind: "villager", name: "Promeneuse",
+        lines: ["La sortie est mène à la Route 3 et à la Cité Azur, au bord de la mer.",
+          "La nuit, les lampadaires attirent des Lucioline. C'est magnifique !"]
+      },
+      { x: 17, y: 12, kind: "sign", name: "Panneau", lines: ["Verdicité — « La ville-jardin ». Arène : Sylvia, experte Plante. Est : Route 3."] }
+    ],
+    pickups: [
+      { id: "v1", x: 28, y: 20, item: "superpotion", n: 1 },
+      { id: "v2", x: 3, y: 20, item: "ball", n: 3 }
+    ]
+  },
+
+  // ---------- Arène 1 : Sylvia (Plante) ----------
+  gym1: {
+    label: "Arène de Verdicité", theme: "interior", gymType: "Plante",
+    rows: [
+      "################",
+      "#......cc......#",
+      "#..%...cc...%..#",
+      "#......cc......#",
+      "#......cc......#",
+      "#..%...cc...%..#",
+      "#......cc......#",
+      "#......cc......#",
+      "#..%...cc...%..#",
+      "#......cc......#",
+      "#......cc......#",
+      "#......cc......#",
+      "#......DD......#",
+      "################"
+    ],
+    exits: [
+      { x: 7, y: 12, to: "verdicite", tx: 15, ty: 3, dir: "down" },
+      { x: 8, y: 12, to: "verdicite", tx: 15, ty: 3, dir: "down" }
+    ],
+    npcs: [
+      {
+        x: 7, y: 1, kind: "leader", id: "gym1", name: "Cheffe Sylvia", robe: "#4e9e44", badge: "feuille",
+        pre: ["Bienvenue dans mon jardin de combat.", "Montre-moi si ta détermination est aussi vivace que mes plantes !"],
+        team: [["feuillune", 10], ["sylvoria", 12]],
+        win: ["Magnifique… Tu as fleuri sous la pression !", "Reçois le Badge Feuille, tu l'as mérité."],
+        post: ["Le chef Magnus de Rocheville t'attend à l'est. Ses Novamon Roche sont coriaces !"],
+        reward: { item: "superball", n: 3 }
+      },
+      {
+        x: 5, y: 6, kind: "trainer", id: "g1t1", name: "Botaniste Ivo",
+        pre: ["Personne ne voit la cheffe sans m'arroser d'abord !"],
+        team: [["feuillune", 8], ["vipoison", 8]],
+        win: ["Mes racines ont cédé !"],
+        post: ["La cheffe Sylvia garde toujours son Sylvoria pour la fin."],
+        reward: { item: "potion", n: 1 }
+      }
+    ],
+    pickups: []
+  },
+
+  // ---------- Route 2 (forêt, vers Rocheville) ----------
+  route2: {
+    label: "Route 2 — Forêt Sombre", theme: "outdoor",
+    rows: [
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "T..T.T..;;;;..T.T..T..;;;..T.T...T",
+      "T.T..;;;;;;..T..;;;;..;;;;....T..T",
+      "T..T.;;;;..T...;;;;;;...;;..T....T",
+      "T.T.....T...T...;;;;..T....T..T..T",
+      "T..T..T...T................T.....T",
+      "T.T.....;;;...T...;;;;..T.....T..T",
+      "T..T....;;;.......;;;;.......T...T",
+      "T.T..T.....T..T........T..T......T",
+      "pppppppppppppppppppppppppppppppppp",
+      "pppppppppppppppppppppppppppppppppp",
+      "T.T...T....T...T.....T...T....T..T",
+      "T...;;;..T....;;;;....T..;;;..T..T",
+      "T.T.;;;....T..;;;;..T....;;;.....T",
+      "T..T....T........T....T.....T.T..T",
+      "T.T..;;;;..T..;;;;;..T..;;;;..T..T",
+      "T..T.;;;;....T;;;;;.....;;;;.T...T",
+      "T.T.......T.......T...T........T.T",
+      "T..T..T......T.........T..T..T...T",
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+    ],
+    enc: { label: "Route 2 — Forêt Sombre", lv: [7, 10], table: [["vipoison", 25], ["psylune", 20], ["spectrio", 20], ["mousserond", 20], ["pioupiou", 15]] },
+    exits: [
+      { x: 0, y: 9, to: "kaelis", tx: 38, ty: 16, dir: "left" },
+      { x: 0, y: 10, to: "kaelis", tx: 38, ty: 17, dir: "left" },
+      { x: 33, y: 9, to: "rocheville", tx: 1, ty: 10, dir: "right" },
+      { x: 33, y: 10, to: "rocheville", tx: 1, ty: 11, dir: "right" }
+    ],
+    npcs: [
+      {
+        x: 12, y: 8, kind: "trainer", id: "r2t1", name: "Scout Marco",
+        pre: ["Cette forêt est pleine de dangers. Prouve que tu peux les affronter !"],
+        team: [["vipoison", 8], ["mousserond", 8]],
+        win: ["Tu es prêt pour la suite du chemin."],
+        post: ["Les Spectrio n'attaquent que les dresseurs distraits. Reste sur tes gardes."],
+        reward: { item: "ball", n: 2 }
+      },
+      {
+        x: 24, y: 11, kind: "trainer", id: "r2t2", name: "Mystique Véra",
+        pre: ["Les esprits de la forêt m'ont annoncé ta venue…"],
+        team: [["psylune", 9], ["spectrio", 9]],
+        win: ["Les esprits… se sont trompés ?!"],
+        post: ["Le chef Magnus craint l'Eau et la Plante. Les esprits te le confirment."],
+        reward: { item: "superpotion", n: 1 }
+      },
+      { x: 4, y: 11, kind: "sign", name: "Panneau", lines: ["Route 2 — Forêt Sombre. Est : Rocheville. Ouest : Bourg Kaelis."] }
+    ],
+    pickups: [
+      { id: "r2p1", x: 5, y: 12, item: "ball", n: 3 },
+      { id: "r2p2", x: 29, y: 16, item: "superpotion", n: 1 }
+    ]
+  },
+
+  // ---------- Rocheville (arène Roche) ----------
+  rocheville: {
+    label: "Rocheville", theme: "city",
+    rows: [
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "T.r..r.......................T",
+      "T....r.....GDG.....r..r......T",
+      "T............................T",
+      "T....!...ppppppp...!....r....T",
+      "T........p.....p.............T",
+      "T..h.....p.....p......h......T",
+      "T........p.....p.............T",
+      "T.r......ppppppp........r....T",
+      "T.............p..............T",
+      "pp............p.........r....T",
+      "pp............p..............T",
+      "T..h..........p.......h......T",
+      "T....!........p..........!...T",
+      "T...H.........p..............T",
+      "T.............p....r.........T",
+      "T..r..........p..............T",
+      "T.............p..............T",
+      "T.....r.......p.........r....T",
+      "T.............p..............T",
+      "T...........................rT",
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+    ],
+    exits: [
+      { x: 0, y: 10, to: "route2", tx: 32, ty: 9, dir: "left" },
+      { x: 0, y: 11, to: "route2", tx: 32, ty: 10, dir: "left" },
+      { x: 12, y: 2, to: "gym2", tx: 7, ty: 11, dir: "up" }
+    ],
+    npcs: [
+      {
+        x: 20, y: 12, kind: "villager", name: "Mineur",
+        lines: ["Rocheville est bâtie sur le granit. Solide, comme les Novamon du chef Magnus !",
+          "Un conseil : l'Eau et la Plante font des merveilles contre la Roche."]
+      },
+      { x: 17, y: 9, kind: "sign", name: "Panneau", lines: ["Rocheville — « La ville de pierre ». Arène : Magnus, expert Roche."] }
+    ],
+    pickups: [
+      { id: "rv1", x: 26, y: 17, item: "superball", n: 2 },
+      { id: "rv2", x: 3, y: 18, item: "potion", n: 2 }
+    ]
+  },
+
+  // ---------- Arène 2 : Magnus (Roche) ----------
+  gym2: {
+    label: "Arène de Rocheville", theme: "interior", gymType: "Roche",
+    rows: [
+      "################",
+      "#......cc......#",
+      "#..r...cc...r..#",
+      "#......cc......#",
+      "#......cc......#",
+      "#..r...cc...r..#",
+      "#......cc......#",
+      "#......cc......#",
+      "#..r...cc...r..#",
+      "#......cc......#",
+      "#......cc......#",
+      "#......cc......#",
+      "#......DD......#",
+      "################"
+    ],
+    exits: [
+      { x: 7, y: 12, to: "rocheville", tx: 12, ty: 3, dir: "down" },
+      { x: 8, y: 12, to: "rocheville", tx: 12, ty: 3, dir: "down" }
+    ],
+    npcs: [
+      {
+        x: 7, y: 1, kind: "leader", id: "gym2", name: "Chef Magnus", robe: "#8a7458", badge: "roc",
+        pre: ["Ma défense est un rempart de granit.", "Voyons si tu peux l'ébrécher !"],
+        team: [["rocmite", 13], ["givrelin", 14], ["rocmite", 16]],
+        win: ["Par tous les éboulis… ma muraille est tombée !", "Le Badge Roc est à toi."],
+        post: ["La cheffe Marina de la Cité Azur est la plus forte de nous trois. Passe par la Route 3, à l'est de Verdicité."],
+        reward: { item: "superpotion", n: 2 }
+      },
+      {
+        x: 10, y: 6, kind: "trainer", id: "g2t1", name: "Montagnard Bruno",
+        pre: ["Cette arène, je la garde comme un roc !"],
+        team: [["rocmite", 11]],
+        win: ["Fissuré…"],
+        post: ["Le chef Magnus cache un Givrelin dans son équipe. Méfie-toi de la Glace !"],
+        reward: { item: "potion", n: 1 }
+      }
+    ],
+    pickups: []
+  },
+
+  // ---------- Route 3 (prés du lac, vers Cité Azur) ----------
+  route3: {
+    label: "Route 3 — Prés du Lac", theme: "outdoor",
+    rows: [
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "T...,,,....;;;....,,....;;;;....T..T",
+      "T..,,,,...;;;;...,,,...;;;;.......TT",
+      "T...........;;.........;;......s..T",
+      "T..T....,,......;;;........ss.sss.T",
+      "T.......,,,....;;;;....s.ssswwws..T",
+      "T..;;;.........;;;;....sswwwwwws..T",
+      "T..;;;;...T............swwwwwwws..T",
+      "T...;;.................swwwwwss...T",
+      "T.............................s...T",
+      "pppppppppppppppppppppppppppppppppppp",
+      "pppppppppppppppppppppppppppppppppppp",
+      "T....,,....;;;....,,,....;;;....s.T",
+      "T...,,,,..;;;;...,,,,...;;;;......T",
+      "T....,,...;;;;....,,....;;;;..T...T",
+      "T..T...........T..............T...T",
+      "T.....,,,....;;;.....,,,..........T",
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+    ],
+    enc: { label: "Route 3 — Prés du Lac", lv: [10, 14], table: [["lucioline", 25], ["bulleau", 25], ["psylune", 15], ["givrelin", 15], ["dracelet", 20]] },
+    exits: [
+      { x: 0, y: 10, to: "verdicite", tx: 30, ty: 10, dir: "left" },
+      { x: 0, y: 11, to: "verdicite", tx: 30, ty: 11, dir: "left" },
+      { x: 35, y: 10, to: "citeazur", tx: 1, ty: 10, dir: "right" },
+      { x: 35, y: 11, to: "citeazur", tx: 1, ty: 11, dir: "right" }
+    ],
+    npcs: [
+      {
+        x: 24, y: 9, kind: "trainer", id: "r3t1", name: "Pêcheur Gil",
+        pre: ["Ça mord bien aujourd'hui… et mes Novamon aussi !"],
+        team: [["bulleau", 11], ["bulleau", 12]],
+        win: ["Ils m'ont filé entre les doigts !"],
+        post: ["Les Dracelet remontent parfois du lac. J'en ai vu un une fois. Une seule."],
+        reward: { item: "superball", n: 1 }
+      },
+      {
+        x: 9, y: 12, kind: "trainer", id: "r3t2", name: "Danseuse Mila",
+        pre: ["Danse avec mes étoiles !"],
+        team: [["lucioline", 12], ["psylune", 12]],
+        win: ["Quelle chorégraphie éblouissante !"],
+        post: ["La cheffe Marina est imprévisible. Prends de l'avance avec un Novamon Plante ou Électrik."],
+        reward: { item: "superpotion", n: 1 }
+      },
+      { x: 4, y: 9, kind: "sign", name: "Panneau", lines: ["Route 3 — Prés du Lac. Est : Cité Azur. Ouest : Verdicité."] }
+    ],
+    pickups: [
+      { id: "r3p1", x: 33, y: 3, item: "superball", n: 2 },
+      { id: "r3p2", x: 3, y: 16, item: "superpotion", n: 1 }
+    ]
+  },
+
+  // ---------- Cité Azur (arène Eau) ----------
+  citeazur: {
+    label: "Cité Azur", theme: "city",
+    rows: [
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+      "T............................T",
+      "T...h...h.....GDG.....h......T",
+      "T............................T",
+      "T...!....ppppppppp....!......T",
+      "T........p.......p...........T",
+      "T..h.....p.......p.....h.....T",
+      "T........p...F...p...........T",
+      "T........ppppppppp...........T",
+      "T.............p..............T",
+      "pp............p..............T",
+      "pp............p......H.......T",
+      "T.............p..............T",
+      "T....,,.......p.........,,...T",
+      "T.............p..............T",
+      "T....!........p..........!...T",
+      "T..sssssssssssssssssssssss...T",
+      "T.ssssssssssssssssssssssssss.T",
+      "T.sssbbsssssssssssbbsssssss..T",
+      "Tswwwbbwwwwwwwwwwwbbwwwwwwws.T",
+      "TwwwwbbwwwwwwwwwwwbbwwwwwwwwT",
+      "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+    ],
+    enc: { label: "Cité Azur — Plage", lv: [12, 16], table: [["bulleau", 40], ["lucioline", 20], ["givrelin", 20], ["dracelet", 20]] },
+    exits: [
+      { x: 0, y: 10, to: "route3", tx: 34, ty: 10, dir: "left" },
+      { x: 0, y: 11, to: "route3", tx: 34, ty: 11, dir: "left" },
+      { x: 15, y: 2, to: "gym3", tx: 7, ty: 11, dir: "up" }
+    ],
+    npcs: [
+      {
+        x: 21, y: 13, kind: "villager", name: "Marin",
+        lines: ["La Cité Azur vit au rythme des marées. La plage regorge de Novamon Eau !",
+          "La cheffe Marina n'a jamais perdu à domicile. La Plante et l'Électrik sont tes meilleurs alliés."]
+      },
+      { x: 17, y: 9, kind: "sign", name: "Panneau", lines: ["Cité Azur — « La perle de la côte ». Arène : Marina, experte Eau."] }
+    ],
+    pickups: [
+      { id: "c1", x: 26, y: 13, item: "superball", n: 2 },
+      { id: "c2", x: 4, y: 17, item: "superpotion", n: 1 }
+    ]
+  },
+
+  // ---------- Arène 3 : Marina (Eau) ----------
+  gym3: {
+    label: "Arène de la Cité Azur", theme: "interior", gymType: "Eau",
+    rows: [
+      "################",
+      "#......cc......#",
+      "#.ww...cc...ww.#",
+      "#.ww...cc...ww.#",
+      "#......cc......#",
+      "#......cc......#",
+      "#.ww...cc...ww.#",
+      "#.ww...cc...ww.#",
+      "#......cc......#",
+      "#......cc......#",
+      "#......cc......#",
+      "#......cc......#",
+      "#......DD......#",
+      "################"
+    ],
+    exits: [
+      { x: 7, y: 12, to: "citeazur", tx: 15, ty: 3, dir: "down" },
+      { x: 8, y: 12, to: "citeazur", tx: 15, ty: 3, dir: "down" }
+    ],
+    npcs: [
+      {
+        x: 7, y: 1, kind: "leader", id: "gym3", name: "Cheffe Marina", robe: "#3a7fc4", badge: "vague",
+        pre: ["Les vagues façonnent la pierre, et moi je façonne les champions.", "Que la marée décide !"],
+        team: [["bulleau", 16], ["torrentide", 18]],
+        win: ["La marée s'est retirée devant toi…", "Le Badge Vague t'appartient. Tu es un vrai dresseur, maintenant."],
+        post: ["Avec trois badges, la Ligue de Kaelis t'ouvrira bientôt ses portes… Entraîne-toi, champion."],
+        reward: { item: "superball", n: 3 }
+      },
+      {
+        x: 5, y: 6, kind: "trainer", id: "g3t1", name: "Nageur Lino",
+        pre: ["Un plongeon avant de voir la cheffe ?"],
+        team: [["aquano", 14]],
+        win: ["Glou glou…"],
+        post: ["Le Torrentide de la cheffe encaisse tout. Vise fort et juste."],
+        reward: { item: "potion", n: 1 }
+      }
+    ],
+    pickups: []
+  }
+};
+
+// Normalisation : lignes de largeur fixe, grille de caractères
+for (const id of Object.keys(MAPS)) {
+  const m = MAPS[id];
+  m.id = id;
+  m.w = m.rows[0].length;
+  m.h = m.rows.length;
+  m.grid = m.rows.map(r => r.slice(0, m.w).padEnd(m.w, ".").split(""));
 }
 
-// ---------- Zones de rencontre ----------
-// Chaque table : [idEspèce, poids], niveaux min/max
+function tileOf(map, x, y) {
+  if (x < 0 || y < 0 || x >= map.w || y >= map.h) return "T";
+  return map.grid[y][x];
+}
+
+// ---------- Zones de rencontre du Bourg Kaelis ----------
 const ZONES = {
   plaine: {
     label: "Plaine de Kaelis", lv: [2, 5],
@@ -312,45 +834,13 @@ const ZONES = {
     table: [["bulleau", 45], ["mousserond", 22], ["lucioline", 23], ["dracelet", 10]]
   }
 };
-function zoneAt(x, y) {
+function zoneAtKaelis(x, y) {
   if (y <= 7) return x >= 26 ? ZONES.rocher : ZONES.plaine;
   if (x <= 13) return ZONES.lac;
   if (x >= 27) return ZONES.foret;
   return ZONES.plaine;
 }
-
-// ---------- PNJ, panneaux et objets au sol ----------
-const NPCS = [
-  {
-    x: 29, y: 25, kind: "prof", name: "Prof. Aralia",
-    lines: ["Bienvenue à Kaelis ! Les hautes herbes regorgent de Novamon sauvages.",
-      "Affaiblis-les au combat avant de lancer une Novaball : la capture sera plus facile !"]
-  },
-  {
-    x: 11, y: 22, kind: "villager", name: "Habitante",
-    lines: ["Le centre de soins à l'ouest du village remet ton équipe sur pied gratuitement.",
-      "On dit qu'un dragon très rare vit près du Lac Azuré…"]
-  },
-  {
-    x: 24, y: 21, kind: "villager", name: "Voyageur",
-    lines: ["La Forêt Murmurante à l'est abrite des Spectrio farceurs.",
-      "Les Rocmite des crêtes ont une défense de fer : vise leurs faiblesses !"]
-  },
-  {
-    x: 16, y: 21, kind: "sign", name: "Panneau",
-    lines: ["Village de Kaelis — Nord : Plaine • Ouest : Lac Azuré • Est : Forêt Murmurante"]
-  },
-  {
-    x: 8, y: 24, kind: "sign", name: "Panneau",
-    lines: ["Centre de soins — Placez-vous devant et appuyez sur E pour soigner votre équipe."]
-  }
-];
-
-const PICKUPS = [
-  { id: "p1", x: 4,  y: 17, item: "ball",        n: 3 },
-  { id: "p2", x: 35, y: 2,  item: "potion",      n: 2 },
-  { id: "p3", x: 34, y: 18, item: "ball",        n: 3 },
-  { id: "p4", x: 2,  y: 27, item: "superball",   n: 2 },
-  { id: "p5", x: 36, y: 10, item: "superpotion", n: 1 },
-  { id: "p6", x: 3,  y: 7,  item: "potion",      n: 2 }
-];
+function encounterFor(map, x, y) {
+  if (map.useZones) return zoneAtKaelis(x, y);
+  return map.enc || ZONES.plaine;
+}

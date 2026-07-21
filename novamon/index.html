@@ -39,6 +39,7 @@
   #hud canvas { image-rendering: auto; }
   #hudinfo { font-size: 13px; line-height: 1.45; }
   #hudinfo b { font-size: 14px; }
+  #hudbadges { margin-left: 8px; font-size: 12px; letter-spacing: 2px; }
   .minibar { width: 110px; height: 8px; border-radius: 4px; background: #1c2430;
     border: 1px solid rgba(255,255,255,.25); overflow: hidden; }
   .minibar > div { height: 100%; border-radius: 4px; background: linear-gradient(180deg,#6ee06e,#3aa83a);
@@ -138,6 +139,18 @@
   #title .tbtns { display: flex; gap: 14px; }
   #title button { font-size: 17px; padding: 13px 30px; }
 
+  /* ---------- Bannière de zone ---------- */
+  #banner {
+    position: absolute; top: 14%; left: 50%; transform: translateX(-50%) translateY(-8px);
+    z-index: 15; pointer-events: none; opacity: 0;
+    font-size: clamp(24px, 4vw, 40px); font-weight: 900; letter-spacing: 4px;
+    color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.5), 0 6px 24px rgba(0,0,0,.6);
+    padding: 6px 30px; border-top: 2px solid rgba(255,255,255,.55);
+    border-bottom: 2px solid rgba(255,255,255,.55);
+    transition: opacity .5s, transform .5s;
+  }
+  #banner.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
   /* ---------- Toast ---------- */
   #toast {
     position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
@@ -168,6 +181,7 @@
     <b id="hudname">—</b>
     <div class="minibar"><div id="hudhp" style="width:100%"></div></div>
     <span id="hudballs">Novaballs : 0</span>
+    <span id="hudbadges" title="Badges">◌ ◌ ◌</span>
   </div>
 </div>
 <div id="hudbtns">
@@ -198,6 +212,7 @@
 <div id="modalwrap"><div id="modal" class="panel"></div></div>
 
 <div id="toast" class="panel"></div>
+<div id="banner"></div>
 
 <div id="title">
   <h1>NOVA<span>MON</span></h1>
