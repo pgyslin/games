@@ -5,6 +5,61 @@
 // ============================================================
 "use strict";
 
+// ============================================================
+//  Assets images (packs CC0 — voir assets/README.md).
+//  Chaque image est optionnelle : si elle manque, le jeu retombe
+//  sur le rendu par code ci-dessous.
+// ============================================================
+let ART_V = 0;            // incrémenté à chaque image chargée (invalide les caches)
+function loadArt(path) {
+  const img = new Image();
+  img.ready = false;
+  img.onload = () => { img.ready = true; ART_V++; };
+  img.onerror = () => {};
+  img.src = "assets/" + path;
+  return img;
+}
+const artOk = img => !!(img && img.ready && img.naturalWidth > 0);
+
+const ART = {
+  tiles: {},
+  obj: {},
+  hero: { down: [], up: [], left: [], right: [] },
+  npc: {}
+};
+for (const n of ["grass0", "grass1", "flowers", "flowers2", "sprout", "path0", "path1",
+  "sand0", "sand1", "water0", "water1", "plank", "plank1",
+  "carpet_Plante", "carpet_Roche", "carpet_Eau", "wallstone", "doormat"]) {
+  ART.tiles[n] = loadArt("tiles/" + n + ".png");
+}
+for (const n of ["tree0", "tree1", "tree2", "tree3", "bush0", "bush1", "rock", "sign",
+  "lamp", "pot", "house", "heal", "lab", "gym", "gymdoor"]) {
+  ART.obj[n] = loadArt("obj/" + n + ".png");
+}
+for (const d of ["down", "up", "left", "right"]) {
+  for (let i = 0; i < 3; i++) ART.hero[d].push(loadArt(`chars/hero_${d}_${i}.png`));
+}
+for (const n of ["prof", "villager", "villager2", "trainer", "trainer2", "leader", "wizard"]) {
+  ART.npc[n] = loadArt("chars/npc_" + n + ".png");
+}
+
+// Variantes teintées (chefs d'arène : couleur de robe)
+const TINT_CACHE = {};
+function tintedSprite(img, color, strength = .45) {
+  const key = img.src + "|" + color;
+  if (TINT_CACHE[key]) return TINT_CACHE[key];
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const g = c.getContext("2d");
+  g.drawImage(img, 0, 0);
+  g.globalCompositeOperation = "source-atop";
+  g.globalAlpha = strength;
+  g.fillStyle = color;
+  g.fillRect(0, 0, c.width, c.height);
+  TINT_CACHE[key] = c;
+  return c;
+}
+
 // Petits utilitaires couleur
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
@@ -556,12 +611,66 @@ function pixelSprite(mainCtx, cb, cx, cy, destH, pixel) {
 }
 
 function pixMon(ctx, sp, cx, cy, size, opts = {}, pixel = 3) {
+  // sprite image (assets/<id>.png) : dessin direct, net, sans passe de pixelisation
+  if (sp.custom && sp.custom.complete && sp.custom.naturalWidth > 0) {
+    drawMon(ctx, sp, cx, cy, size, opts);
+    return;
+  }
   pixelSprite(ctx, (c, x, y, s) => drawMon(c, sp, x, y, s, opts), cx, cy, size, pixel);
 }
 function pixHero(ctx, cx, cy, size, dir, phase, t, pixel = 2) {
+  const frames = ART.hero[dir] || ART.hero.down;
+  const seq = [0, 1, 0, 2];
+  const idx = phase > 0.001 ? seq[Math.floor(phase * 4) % 4] : 0;
+  const img = frames[idx];
+  if (artOk(img)) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - size * .02, size * .30, size * .10, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(20,30,25,.3)"; ctx.fill();
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, cx - size / 2, cy - size * .96, size, size);
+    ctx.imageSmoothingEnabled = prev;
+    ctx.restore();
+    return;
+  }
   pixelSprite(ctx, (c, x, y, s) => drawHero(c, x, y, s, dir, phase, t), cx, cy, size, pixel);
 }
+// image de PNJ selon son rôle (null => rendu par code)
+function npcArtFor(npc) {
+  if (npc.kind === "sign") return artOk(ART.obj.sign) ? ART.obj.sign : null;
+  if (npc.kind === "prof") return artOk(ART.npc.prof) ? ART.npc.prof : null;
+  if (npc.kind === "leader") {
+    if (!artOk(ART.npc.leader)) return null;
+    return npc.robe ? tintedSprite(ART.npc.leader, npc.robe, .4) : ART.npc.leader;
+  }
+  const v = (npc.name || "").length % 2;
+  if (npc.kind === "trainer") {
+    const img = v ? ART.npc.trainer : ART.npc.trainer2;
+    if (artOk(img)) return img;
+    return artOk(ART.npc.trainer) ? ART.npc.trainer : null;
+  }
+  const img = v ? ART.npc.villager : ART.npc.villager2;
+  if (artOk(img)) return img;
+  return artOk(ART.npc.villager) ? ART.npc.villager : null;
+}
 function pixNpc(ctx, npc, cx, cy, size, t, pixel = 2) {
+  const img = npcArtFor(npc);
+  if (img) {
+    ctx.save();
+    if (npc.kind !== "sign") {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - size * .02, size * .30, size * .10, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(20,30,25,.3)"; ctx.fill();
+    }
+    const prev = ctx.imageSmoothingEnabled;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, cx - size / 2, cy - size * .96, size, size);
+    ctx.imageSmoothingEnabled = prev;
+    ctx.restore();
+    return;
+  }
   pixelSprite(ctx, (c, x, y, s) => drawNpc(c, npc, x, y, s, t), cx, cy, size, pixel);
 }
 

@@ -1107,7 +1107,9 @@ function hash2(x, y) {
 const GYM_CARPET = { "Plante": "#4e8a3c", "Roche": "#8a6f4e", "Eau": "#3c6f9e" };
 
 function getRender(mapId) {
-  if (RENDER_CACHE[mapId]) return RENDER_CACHE[mapId];
+  // le cache est invalidé quand de nouvelles images d'assets finissent de charger
+  const cached = RENDER_CACHE[mapId];
+  if (cached && cached.artv === ART_V) return cached;
   const map = MAPS[mapId];
   // "floor" : uniquement le sol (utilisé par la vue Paper 3D) ;
   // "canvas" : carte complète avec décors (vue 2D classique)
@@ -1120,54 +1122,98 @@ function getRender(mapId) {
   const interior = map.theme === "interior";
 
   // --- passe 1 : sols ---
+  const tArt = n => (artOk(ART.tiles[n]) ? ART.tiles[n] : null);
+  const tDraw = (img, px, py) => {
+    m.imageSmoothingEnabled = false;
+    m.drawImage(img, px, py, TILE, TILE);
+  };
   for (let y = 0; y < map.h; y++) {
     for (let x = 0; x < map.w; x++) {
       const t = map.grid[y][x], px = x * TILE, py = y * TILE;
       const h = hash2(x, y);
+      // base : parquet (intérieur) ou herbe (extérieur)
+      let base;
       if (interior) {
-        // parquet
-        m.fillStyle = `hsl(28, 32%, ${30 + (y % 2) * 3 + h * 3}%)`;
-        m.fillRect(px, py, TILE, TILE);
-        m.strokeStyle = "rgba(0,0,0,.25)"; m.lineWidth = 1;
-        m.strokeRect(px + .5, py + .5, TILE, TILE);
+        base = tArt(h > .8 ? "plank1" : "plank");
+        if (base) tDraw(base, px, py);
+        else {
+          m.fillStyle = `hsl(28, 32%, ${30 + (y % 2) * 3 + h * 3}%)`;
+          m.fillRect(px, py, TILE, TILE);
+          m.strokeStyle = "rgba(0,0,0,.25)"; m.lineWidth = 1;
+          m.strokeRect(px + .5, py + .5, TILE, TILE);
+        }
       } else {
-        m.fillStyle = `hsl(${104 + h * 10}, 42%, ${38 + h * 7}%)`;
-        m.fillRect(px, py, TILE, TILE);
-        if (h > .6) {
-          m.fillStyle = "rgba(255,255,255,.05)";
-          m.fillRect(px + h * 20, py + h * 14, 3, 3);
+        base = tArt(h > .55 ? "grass1" : "grass0");
+        if (base) tDraw(base, px, py);
+        else {
+          m.fillStyle = `hsl(${104 + h * 10}, 42%, ${38 + h * 7}%)`;
+          m.fillRect(px, py, TILE, TILE);
+          if (h > .6) {
+            m.fillStyle = "rgba(255,255,255,.05)";
+            m.fillRect(px + h * 20, py + h * 14, 3, 3);
+          }
         }
       }
       if (t === "p") {
-        m.fillStyle = `hsl(38, 40%, ${58 + h * 6}%)`;
-        m.fillRect(px, py, TILE, TILE);
-        m.fillStyle = "rgba(120,90,40,.25)";
-        for (let i = 0; i < 3; i++) m.fillRect(px + ((h * 91 + i * 37) % 26), py + ((h * 53 + i * 17) % 26), 3, 2);
+        const img = tArt(h > .82 ? "path1" : "path0");
+        if (img) tDraw(img, px, py);
+        else {
+          m.fillStyle = `hsl(38, 40%, ${58 + h * 6}%)`;
+          m.fillRect(px, py, TILE, TILE);
+          m.fillStyle = "rgba(120,90,40,.25)";
+          for (let i = 0; i < 3; i++) m.fillRect(px + ((h * 91 + i * 37) % 26), py + ((h * 53 + i * 17) % 26), 3, 2);
+        }
       } else if (t === "s") {
-        m.fillStyle = `hsl(46, 52%, ${68 + h * 6}%)`;
-        m.fillRect(px, py, TILE, TILE);
-        m.fillStyle = "rgba(160,130,60,.3)";
-        m.fillRect(px + h * 22, py + h * 16, 3, 3);
+        const img = tArt(h > .6 ? "sand1" : "sand0");
+        if (img) tDraw(img, px, py);
+        else {
+          m.fillStyle = `hsl(46, 52%, ${68 + h * 6}%)`;
+          m.fillRect(px, py, TILE, TILE);
+          m.fillStyle = "rgba(160,130,60,.3)";
+          m.fillRect(px + h * 22, py + h * 16, 3, 3);
+        }
       } else if (t === "w") {
-        m.fillStyle = `hsl(210, 55%, ${interior ? 45 : 40 + h * 5}%)`;
-        m.fillRect(px, py, TILE, TILE);
+        const img = tArt(h > .5 ? "water1" : "water0");
+        if (img) tDraw(img, px, py);
+        else {
+          m.fillStyle = `hsl(210, 55%, ${interior ? 45 : 40 + h * 5}%)`;
+          m.fillRect(px, py, TILE, TILE);
+        }
         R.water.push([x, y]);
       } else if (t === "b") {
-        m.fillStyle = "hsl(210, 55%, 42%)";
-        m.fillRect(px, py, TILE, TILE);
-        m.fillStyle = "#a0703c";
-        m.fillRect(px + 2, py, TILE - 4, TILE);
-        m.strokeStyle = "#6e4a22";
-        for (let i = 0; i < 4; i++) { m.beginPath(); m.moveTo(px + 2, py + i * 8 + 4); m.lineTo(px + TILE - 2, py + i * 8 + 4); m.stroke(); }
+        const img = tArt("plank");
+        if (img) tDraw(img, px, py);
+        else {
+          m.fillStyle = "hsl(210, 55%, 42%)";
+          m.fillRect(px, py, TILE, TILE);
+          m.fillStyle = "#a0703c";
+          m.fillRect(px + 2, py, TILE - 4, TILE);
+          m.strokeStyle = "#6e4a22";
+          for (let i = 0; i < 4; i++) { m.beginPath(); m.moveTo(px + 2, py + i * 8 + 4); m.lineTo(px + TILE - 2, py + i * 8 + 4); m.stroke(); }
+        }
       } else if (t === "c") {
-        const cc = GYM_CARPET[map.gymType] || "#7a4e8a";
-        m.fillStyle = cc;
-        m.fillRect(px, py, TILE, TILE);
-        m.fillStyle = "rgba(255,255,255,.08)";
-        if ((x + y) % 2 === 0) m.fillRect(px, py, TILE, TILE);
+        const img = tArt("carpet_" + map.gymType);
+        if (img) tDraw(img, px, py);
+        else {
+          const cc = GYM_CARPET[map.gymType] || "#7a4e8a";
+          m.fillStyle = cc;
+          m.fillRect(px, py, TILE, TILE);
+          m.fillStyle = "rgba(255,255,255,.08)";
+          if ((x + y) % 2 === 0) m.fillRect(px, py, TILE, TILE);
+        }
       } else if (t === "D" && interior) {
-        m.fillStyle = "#8a6a48";
-        m.fillRect(px, py, TILE, TILE);
+        const img = tArt("doormat");
+        if (img) tDraw(img, px, py);
+        else {
+          m.fillStyle = "#8a6a48";
+          m.fillRect(px, py, TILE, TILE);
+        }
+      } else if (t === ",") {
+        const img = tArt(h > .6 ? "flowers2" : "flowers");
+        if (img) tDraw(img, px, py);
+      } else if (t === ";") {
+        const img = tArt("sprout");
+        if (img) tDraw(img, px, py);
       }
     }
   }
@@ -1178,16 +1224,19 @@ function getRender(mapId) {
   }
 
   // les fleurs font partie du sol (nécessaire pour la vue Paper 3D)
-  for (let y = 0; y < map.h; y++) {
-    for (let x = 0; x < map.w; x++) {
-      if (map.grid[y][x] !== ",") continue;
-      const h = hash2(x, y);
-      for (let i = 0; i < 3; i++) {
-        const fx = x * TILE + 5 + ((h * 97 + i * 41) % 22), fy = y * TILE + 6 + ((h * 61 + i * 29) % 20);
-        m.fillStyle = ["#ffd9ec", "#fff3b0", "#ffffff"][i % 3];
-        m.beginPath(); m.arc(fx, fy, 2.6, 0, Math.PI * 2); m.fill();
-        m.fillStyle = "#e8a838";
-        m.beginPath(); m.arc(fx, fy, 1, 0, Math.PI * 2); m.fill();
+  // — uniquement si la tuile image de fleurs n'est pas disponible
+  if (!tArt("flowers")) {
+    for (let y = 0; y < map.h; y++) {
+      for (let x = 0; x < map.w; x++) {
+        if (map.grid[y][x] !== ",") continue;
+        const h = hash2(x, y);
+        for (let i = 0; i < 3; i++) {
+          const fx = x * TILE + 5 + ((h * 97 + i * 41) % 22), fy = y * TILE + 6 + ((h * 61 + i * 29) % 20);
+          m.fillStyle = ["#ffd9ec", "#fff3b0", "#ffffff"][i % 3];
+          m.beginPath(); m.arc(fx, fy, 2.6, 0, Math.PI * 2); m.fill();
+          m.fillStyle = "#e8a838";
+          m.beginPath(); m.arc(fx, fy, 1, 0, Math.PI * 2); m.fill();
+        }
       }
     }
   }
@@ -1209,68 +1258,101 @@ function getRender(mapId) {
   }
 
   // --- passe 2 : décors ---
+  const oArt = n => (artOk(ART.obj[n]) ? ART.obj[n] : null);
+  const oDraw = (img, cx, by, w2, h2) => {
+    m.imageSmoothingEnabled = false;
+    m.drawImage(img, cx - w2 / 2, by - h2, w2, h2);
+  };
+  const treeArtFor = h => oArt(h < .5 ? "tree0" : h < .65 ? "tree3" : h < .8 ? "tree2" : "tree1");
   for (let y = 0; y < map.h; y++) {
     for (let x = 0; x < map.w; x++) {
       const t = map.grid[y][x], px = x * TILE + TILE / 2, py = y * TILE + TILE;
       const h = hash2(x, y);
       if (t === ",") {
-        for (let i = 0; i < 3; i++) {
-          const fx = x * TILE + 5 + ((h * 97 + i * 41) % 22), fy = y * TILE + 6 + ((h * 61 + i * 29) % 20);
-          m.fillStyle = ["#ffd9ec", "#fff3b0", "#ffffff"][i % 3];
-          m.beginPath(); m.arc(fx, fy, 2.6, 0, Math.PI * 2); m.fill();
-          m.fillStyle = "#e8a838";
-          m.beginPath(); m.arc(fx, fy, 1, 0, Math.PI * 2); m.fill();
+        if (!tArt("flowers")) {
+          for (let i = 0; i < 3; i++) {
+            const fx = x * TILE + 5 + ((h * 97 + i * 41) % 22), fy = y * TILE + 6 + ((h * 61 + i * 29) % 20);
+            m.fillStyle = ["#ffd9ec", "#fff3b0", "#ffffff"][i % 3];
+            m.beginPath(); m.arc(fx, fy, 2.6, 0, Math.PI * 2); m.fill();
+            m.fillStyle = "#e8a838";
+            m.beginPath(); m.arc(fx, fy, 1, 0, Math.PI * 2); m.fill();
+          }
         }
         R.flowers.push([x, y]);
       } else if (t === ";") {
         R.tufts.push([x, y]);
       } else if (t === "r") {
         castShadow(px, py - 8, 14, 6);
-        const g = m.createRadialGradient(px - 5, py - 18, 3, px, py - 10, 16);
-        g.addColorStop(0, "#b8aca0"); g.addColorStop(1, "#6e6258");
-        m.fillStyle = g;
-        m.beginPath(); m.ellipse(px, py - 10, 13, 10, 0, 0, Math.PI * 2); m.fill();
-        m.strokeStyle = "#4a4038"; m.lineWidth = 2; m.stroke();
-        m.fillStyle = "rgba(255,255,255,.25)";
-        m.beginPath(); m.ellipse(px - 4, py - 15, 4, 2.5, -.4, 0, Math.PI * 2); m.fill();
+        const img = oArt("rock");
+        if (img) oDraw(img, px, py, 30, 30);
+        else {
+          const g = m.createRadialGradient(px - 5, py - 18, 3, px, py - 10, 16);
+          g.addColorStop(0, "#b8aca0"); g.addColorStop(1, "#6e6258");
+          m.fillStyle = g;
+          m.beginPath(); m.ellipse(px, py - 10, 13, 10, 0, 0, Math.PI * 2); m.fill();
+          m.strokeStyle = "#4a4038"; m.lineWidth = 2; m.stroke();
+          m.fillStyle = "rgba(255,255,255,.25)";
+          m.beginPath(); m.ellipse(px - 4, py - 15, 4, 2.5, -.4, 0, Math.PI * 2); m.fill();
+        }
       } else if (t === "T") {
         castShadow(px, py - 6, 17, 7);
-        m.fillStyle = "#7a5230";
-        m.fillRect(px - 4, py - 14, 8, 14);
-        const g = m.createRadialGradient(px - 5, py - 34, 4, px, py - 28, 20);
-        g.addColorStop(0, "#6fae4e"); g.addColorStop(1, "#2f6130");
-        m.fillStyle = g;
-        m.beginPath();
-        m.arc(px - 8, py - 24, 11, 0, Math.PI * 2);
-        m.arc(px + 8, py - 24, 11, 0, Math.PI * 2);
-        m.arc(px, py - 34, 12, 0, Math.PI * 2);
-        m.fill();
-        m.fillStyle = "rgba(255,255,255,.14)";
-        m.beginPath(); m.arc(px - 6, py - 36, 5, 0, Math.PI * 2); m.fill();
+        const img = treeArtFor(h);
+        if (img) {
+          const tall = img.naturalHeight > img.naturalWidth;
+          if (tall) oDraw(img, px, py + 2, 38, 76);
+          else oDraw(img, px, py + 2, 40, 40);
+        } else {
+          m.fillStyle = "#7a5230";
+          m.fillRect(px - 4, py - 14, 8, 14);
+          const g = m.createRadialGradient(px - 5, py - 34, 4, px, py - 28, 20);
+          g.addColorStop(0, "#6fae4e"); g.addColorStop(1, "#2f6130");
+          m.fillStyle = g;
+          m.beginPath();
+          m.arc(px - 8, py - 24, 11, 0, Math.PI * 2);
+          m.arc(px + 8, py - 24, 11, 0, Math.PI * 2);
+          m.arc(px, py - 34, 12, 0, Math.PI * 2);
+          m.fill();
+          m.fillStyle = "rgba(255,255,255,.14)";
+          m.beginPath(); m.arc(px - 6, py - 36, 5, 0, Math.PI * 2); m.fill();
+        }
       } else if (t === "#") {
-        m.fillStyle = `hsl(220, 12%, ${24 + h * 4}%)`;
-        m.fillRect(x * TILE, y * TILE, TILE, TILE);
-        m.strokeStyle = "rgba(0,0,0,.4)"; m.lineWidth = 2;
-        m.strokeRect(x * TILE + 1, y * TILE + 1, TILE - 2, TILE - 2);
-        m.fillStyle = "rgba(255,255,255,.06)";
-        m.fillRect(x * TILE, y * TILE, TILE, 4);
+        const img = tArt("wallstone");
+        if (img) { m.imageSmoothingEnabled = false; m.drawImage(img, x * TILE, y * TILE, TILE, TILE); }
+        else {
+          m.fillStyle = `hsl(220, 12%, ${24 + h * 4}%)`;
+          m.fillRect(x * TILE, y * TILE, TILE, TILE);
+          m.strokeStyle = "rgba(0,0,0,.4)"; m.lineWidth = 2;
+          m.strokeRect(x * TILE + 1, y * TILE + 1, TILE - 2, TILE - 2);
+          m.fillStyle = "rgba(255,255,255,.06)";
+          m.fillRect(x * TILE, y * TILE, TILE, 4);
+        }
       } else if (t === "%") {
-        m.fillStyle = "#a0623c"; m.strokeStyle = "#6e3f22"; m.lineWidth = 2;
-        m.beginPath(); m.moveTo(px - 9, py - 14); m.lineTo(px + 9, py - 14); m.lineTo(px + 6, py - 2); m.lineTo(px - 6, py - 2); m.closePath();
-        m.fill(); m.stroke();
-        m.fillStyle = "#4d9e3a";
-        for (const [lx, ly, lr] of [[-6, -20, 6], [0, -25, 7], [6, -19, 6]]) {
-          m.beginPath(); m.ellipse(px + lx, py + ly, lr, lr * 1.3, lx * .05, 0, Math.PI * 2); m.fill();
+        const img = oArt("pot");
+        if (img) oDraw(img, px, py, 30, 30);
+        else {
+          m.fillStyle = "#a0623c"; m.strokeStyle = "#6e3f22"; m.lineWidth = 2;
+          m.beginPath(); m.moveTo(px - 9, py - 14); m.lineTo(px + 9, py - 14); m.lineTo(px + 6, py - 2); m.lineTo(px - 6, py - 2); m.closePath();
+          m.fill(); m.stroke();
+          m.fillStyle = "#4d9e3a";
+          for (const [lx, ly, lr] of [[-6, -20, 6], [0, -25, 7], [6, -19, 6]]) {
+            m.beginPath(); m.ellipse(px + lx, py + ly, lr, lr * 1.3, lx * .05, 0, Math.PI * 2); m.fill();
+          }
         }
       } else if (t === "!") {
         castShadow(px, py - 4, 8, 4);
-        m.strokeStyle = "#3a4048"; m.lineWidth = 4; m.lineCap = "round";
-        m.beginPath(); m.moveTo(px, py - 2); m.lineTo(px, py - 40); m.stroke();
-        m.fillStyle = "#2c3138";
-        m.beginPath(); m.arc(px, py - 44, 7, 0, Math.PI * 2); m.fill();
-        m.fillStyle = "#ffd98a";
-        m.beginPath(); m.arc(px, py - 44, 4.5, 0, Math.PI * 2); m.fill();
-        R.lamps.push([px, py - 44]);
+        const img = oArt("lamp");
+        if (img) {
+          oDraw(img, px, py, 38, 38);
+          R.lamps.push([px, py - 30]);
+        } else {
+          m.strokeStyle = "#3a4048"; m.lineWidth = 4; m.lineCap = "round";
+          m.beginPath(); m.moveTo(px, py - 2); m.lineTo(px, py - 40); m.stroke();
+          m.fillStyle = "#2c3138";
+          m.beginPath(); m.arc(px, py - 44, 7, 0, Math.PI * 2); m.fill();
+          m.fillStyle = "#ffd98a";
+          m.beginPath(); m.arc(px, py - 44, 4.5, 0, Math.PI * 2); m.fill();
+          R.lamps.push([px, py - 44]);
+        }
       } else if (t === "F") {
         m.fillStyle = "#9aa4ae"; m.strokeStyle = "#5f6870"; m.lineWidth = 2.4;
         m.beginPath(); m.ellipse(px, py - 10, 15, 11, 0, 0, Math.PI * 2); m.fill(); m.stroke();
@@ -1281,41 +1363,46 @@ function getRender(mapId) {
         R.fountains.push([px, py - 12]);
       } else if (t === "h" || t === "H" || t === "L" || t === "G" || (t === "D" && !interior)) {
         const isGym = (t === "G" || (t === "D" && !interior));
-        const wall = t === "h" ? "#e0c9a0" : isGym ? "#d8dce4" : "#f0e8dc";
-        const roof = t === "H" ? "#e87a9c" : t === "L" ? "#4a8ee0" : isGym ? "#c4a03c" : "#c05a3c";
+        const bimg = oArt(t === "h" ? "house" : t === "H" ? "heal" : t === "L" ? "lab" : t === "D" ? "gymdoor" : "gym");
         castShadow(px, py - 4, 18, 6);
-        m.fillStyle = wall;
-        m.fillRect(px - 15, py - 20, 30, 20);
-        m.strokeStyle = "#8a7050"; m.lineWidth = 2;
-        m.strokeRect(px - 15, py - 20, 30, 20);
-        if (t === "D") { // porte de l'arène
-          m.fillStyle = "#5a4a6e";
-          m.beginPath(); m.moveTo(px - 7, py); m.lineTo(px - 7, py - 14); m.arc(px, py - 14, 7, Math.PI, 0); m.lineTo(px + 7, py); m.closePath(); m.fill();
-          m.fillStyle = "#ffd98a";
-          m.beginPath(); m.arc(px, py - 24, 4, 0, Math.PI * 2); m.fill();
-        } else if (t !== "G") {
-          m.fillStyle = "#6e4a2a";
-          m.fillRect(px - 5, py - 12, 10, 12);
+        if (bimg) {
+          oDraw(bimg, px, py + 2, 44, 44);
         } else {
-          // fenêtre d'arène
-          m.fillStyle = "#8fb8d8";
-          m.fillRect(px - 8, py - 15, 16, 8);
-        }
-        m.fillStyle = roof;
-        m.beginPath();
-        m.moveTo(px - 19, py - 20); m.lineTo(px, py - 36); m.lineTo(px + 19, py - 20);
-        m.closePath(); m.fill();
-        m.strokeStyle = shade(roof, .6); m.stroke();
-        if (t === "H") {
-          m.fillStyle = "#fff";
-          m.fillRect(px - 2, py - 32, 4, 10);
-          m.fillRect(px - 5, py - 29, 10, 4);
-        }
-        if (t === "L") {
-          m.strokeStyle = "#555"; m.lineWidth = 2;
-          m.beginPath(); m.moveTo(px + 10, py - 30); m.lineTo(px + 10, py - 42); m.stroke();
-          m.fillStyle = "#e84a4a";
-          m.beginPath(); m.arc(px + 10, py - 43, 3, 0, Math.PI * 2); m.fill();
+          const wall = t === "h" ? "#e0c9a0" : isGym ? "#d8dce4" : "#f0e8dc";
+          const roof = t === "H" ? "#e87a9c" : t === "L" ? "#4a8ee0" : isGym ? "#c4a03c" : "#c05a3c";
+          m.fillStyle = wall;
+          m.fillRect(px - 15, py - 20, 30, 20);
+          m.strokeStyle = "#8a7050"; m.lineWidth = 2;
+          m.strokeRect(px - 15, py - 20, 30, 20);
+          if (t === "D") { // porte de l'arène
+            m.fillStyle = "#5a4a6e";
+            m.beginPath(); m.moveTo(px - 7, py); m.lineTo(px - 7, py - 14); m.arc(px, py - 14, 7, Math.PI, 0); m.lineTo(px + 7, py); m.closePath(); m.fill();
+            m.fillStyle = "#ffd98a";
+            m.beginPath(); m.arc(px, py - 24, 4, 0, Math.PI * 2); m.fill();
+          } else if (t !== "G") {
+            m.fillStyle = "#6e4a2a";
+            m.fillRect(px - 5, py - 12, 10, 12);
+          } else {
+            // fenêtre d'arène
+            m.fillStyle = "#8fb8d8";
+            m.fillRect(px - 8, py - 15, 16, 8);
+          }
+          m.fillStyle = roof;
+          m.beginPath();
+          m.moveTo(px - 19, py - 20); m.lineTo(px, py - 36); m.lineTo(px + 19, py - 20);
+          m.closePath(); m.fill();
+          m.strokeStyle = shade(roof, .6); m.stroke();
+          if (t === "H") {
+            m.fillStyle = "#fff";
+            m.fillRect(px - 2, py - 32, 4, 10);
+            m.fillRect(px - 5, py - 29, 10, 4);
+          }
+          if (t === "L") {
+            m.strokeStyle = "#555"; m.lineWidth = 2;
+            m.beginPath(); m.moveTo(px + 10, py - 30); m.lineTo(px + 10, py - 42); m.stroke();
+            m.fillStyle = "#e84a4a";
+            m.beginPath(); m.arc(px + 10, py - 43, 3, 0, Math.PI * 2); m.fill();
+          }
         }
         R.lamps.push([px, py - 14, .35]); // fenêtres faiblement lumineuses la nuit
       }
@@ -1333,6 +1420,7 @@ function getRender(mapId) {
     }
   }
 
+  R.artv = ART_V;
   RENDER_CACHE[mapId] = R;
   return R;
 }
@@ -1341,9 +1429,46 @@ function getRender(mapId) {
 //  Sprites de décor "carton" pour la vue Paper 3D
 // ============================================================
 const OBJ_CACHE = {};
+// image d'asset associée à chaque type de billboard (null => rendu par code)
+function objArtFor(kind, v) {
+  const pick = {
+    tree: v < .5 ? "tree0" : v < .65 ? "tree3" : v < .8 ? "tree2" : "tree1",
+    tuft: null, rock: "rock", lamp: "lamp", pot: "pot",
+    house: "house", heal: "heal", lab: "lab", gymG: "gym", gymD: "gymdoor"
+  }[kind];
+  if (kind === "tuft") return artOk(ART.tiles.sprout) ? ART.tiles.sprout : null;
+  if (kind === "wall") return artOk(ART.tiles.wallstone) ? ART.tiles.wallstone : null;
+  if (!pick) return null;
+  return artOk(ART.obj[pick]) ? ART.obj[pick] : null;
+}
 function objSprite(kind, v = 0) {
   const key = kind + "|" + Math.floor(v * 4);
-  if (OBJ_CACHE[key]) return OBJ_CACHE[key];
+  const hit = OBJ_CACHE[key];
+  if (hit && hit.artv === ART_V) return hit;
+  const img = objArtFor(kind, v);
+  if (img) {
+    // billboard construit à partir d'une image d'asset (ancré au sol, ombre incluse)
+    const HDIM = {
+      tree: img.naturalHeight > img.naturalWidth ? 76 : 42,
+      rock: 28, tuft: 26, lamp: 40, pot: 28, wall: 32,
+      house: 50, heal: 50, lab: 50, gymG: 50, gymD: 50
+    };
+    const lh = HDIM[kind] || 32;
+    const lw = Math.round(lh * (img.naturalWidth / img.naturalHeight));
+    const SS = 3;
+    const c = document.createElement("canvas");
+    c.width = lw * SS; c.height = (lh + 5) * SS;
+    c.lw = lw; c.lh = lh + 5;
+    const g = c.getContext("2d");
+    g.scale(SS, SS);
+    g.fillStyle = "rgba(20,30,20,.30)";
+    g.beginPath(); g.ellipse(lw / 2, lh + 2, lw * .40, 3, 0, 0, Math.PI * 2); g.fill();
+    g.imageSmoothingEnabled = false;
+    g.drawImage(img, 0, 2, lw, lh);
+    c.artv = ART_V;
+    OBJ_CACHE[key] = c;
+    return c;
+  }
   const DIM = {
     tree: [52, 66], rock: [34, 28], tuft: [34, 24], lamp: [28, 60], pot: [26, 36],
     wall: [34, 48], fountain: [42, 30], house: [48, 50], heal: [48, 50], lab: [48, 54],
@@ -1479,6 +1604,7 @@ function objSprite(kind, v = 0) {
       g.beginPath(); g.arc(cx + 10, by - 48, 3, 0, Math.PI * 2); g.fill();
     }
   }
+  c.artv = ART_V;
   OBJ_CACHE[key] = c;
   return c;
 }
@@ -1857,7 +1983,7 @@ function renderWorld3D() {
   w.globalCompositeOperation = "lighter";
   for (const o of R.objects) {
     let hgt = 0, str = 0;
-    if (o.kind === "lamp") { hgt = 48; str = 1; }
+    if (o.kind === "lamp") { hgt = artOk(ART.obj.lamp) ? 34 : 48; str = 1; }
     else if (["house", "heal", "lab", "gymG", "gymD"].includes(o.kind)) { hgt = 16; str = .35; }
     else continue;
     const a = str * (.12 + .5 * night);

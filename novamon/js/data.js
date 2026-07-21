@@ -217,13 +217,56 @@ const SPECIES = {
     moves: [[1, "Draco-Souffle"], [1, "Cru-Aile"], [30, "Colère Draco"], [36, "Aéro-Lame"]],
     draw: { shape: "serpent", main: "#4a6fc4", belly: "#cfe0ff", accent: "#243f80", feat: ["wings", "horns"], big: 1.35 },
     desc: "Le seigneur des tempêtes de Kaelis. Il danse dans les cyclones comme dans une brise."
+  },
+  louveran: {
+    id: "louveran", name: "Louveran", types: ["Normal"],
+    base: { hp: 54, atk: 64, def: 48, spd: 66 }, catch: .3, xp: 82,
+    moves: [[1, "Charge"], [5, "Vive-Attaque"], [13, "Plaquage"]],
+    draw: { shape: "quad", main: "#9aa2b0", belly: "#e8ecf2", accent: "#4a5262", feat: ["earsPointy", "stripes"] },
+    desc: "Ce loup gris chasse en silence dans la Forêt Sombre. Son hurlement annonce la tombée de la nuit."
+  },
+  scorpide: {
+    id: "scorpide", name: "Scorpide", types: ["Poison", "Roche"],
+    base: { hp: 48, atk: 66, def: 70, spd: 40 }, catch: .3, xp: 84,
+    moves: [[1, "Dard-Venin"], [6, "Jet-Pierres"], [14, "Bombe Acide"], [22, "Éboulement"]],
+    draw: { shape: "blob", main: "#b8a05a", belly: "#e8d9a8", accent: "#6e5a2a", feat: ["rocky", "antennae"] },
+    desc: "Sa carapace est dure comme le granit des Crêtes. Son dard injecte un venin qui pétrifie."
+  },
+  meduline: {
+    id: "meduline", name: "Méduline", types: ["Eau", "Poison"],
+    base: { hp: 50, atk: 52, def: 55, spd: 48 }, catch: .35, xp: 78,
+    moves: [[1, "Pistolet à O"], [7, "Dard-Venin"], [15, "Bulles d'O"], [23, "Bombe Acide"]],
+    draw: { shape: "ghost", main: "#6fc9d8", belly: "#d8f6ff", accent: "#2c7a8a", feat: ["aura"] },
+    desc: "Cette méduse translucide dérive le long de la côte d'Azur. Ses filaments engourdissent les imprudents."
+  },
+  anguivolt: {
+    id: "anguivolt", name: "Anguivolt", types: ["Électrik", "Eau"],
+    base: { hp: 46, atk: 60, def: 44, spd: 68 }, catch: .32, xp: 80,
+    moves: [[1, "Éclair"], [8, "Pistolet à O"], [16, "Étincelle"], [26, "Tonnerre"]],
+    draw: { shape: "serpent", main: "#4a4a52", belly: "#f2e28a", accent: "#f2c218", feat: ["stripes", "finHead"] },
+    desc: "Une anguille du Lac Azuré qui accumule la foudre des orages. La toucher fait dresser les cheveux."
+  },
+  phantomite: {
+    id: "phantomite", name: "Phantomite", types: ["Spectre", "Psy"],
+    base: { hp: 44, atk: 62, def: 42, spd: 62 }, catch: .28, xp: 86,
+    moves: [[1, "Ombre Portée"], [9, "Choc Mental"], [18, "Ball'Ombre"], [26, "Psyko"]],
+    draw: { shape: "ghost", main: "#b0a8c9", belly: "#efeaff", accent: "#5f5480", feat: ["wingsFairy", "aura"] },
+    desc: "Un papillon spectral né d'un rêve oublié. Sa poudre d'ailes fait voir des souvenirs enfouis."
+  },
+  glacidra: {
+    id: "glacidra", name: "Glacidra", types: ["Glace", "Dragon"],
+    base: { hp: 64, atk: 78, def: 62, spd: 70 }, catch: .12, xp: 150,
+    moves: [[1, "Éclat Glace"], [10, "Draco-Souffle"], [20, "Laser Glace"], [30, "Colère Draco"]],
+    draw: { shape: "serpent", main: "#9fd8f0", belly: "#ffffff", accent: "#4a8ab5", feat: ["wings", "crystals"], big: 1.25 },
+    desc: "On dit qu'il dort au fond du lac depuis l'ère glaciaire. Son souffle fige jusqu'aux cascades."
   }
 };
 
 const DEX_ORDER = [
   "flamizar", "pyroclast", "aquano", "torrentide", "feuillune", "sylvoria",
   "rongelec", "pioupiou", "rafalaile", "mousserond", "rocmite", "spectrio",
-  "givrelin", "vipoison", "lucioline", "psylune", "bulleau", "dracelet", "dracelior"
+  "givrelin", "vipoison", "lucioline", "psylune", "bulleau", "dracelet", "dracelior",
+  "louveran", "scorpide", "meduline", "anguivolt", "phantomite", "glacidra"
 ];
 
 const STARTERS = ["flamizar", "aquano", "feuillune"];
@@ -532,7 +575,7 @@ const MAPS = {
       "T..T..T......T.........T..T..T...T",
       "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
     ],
-    enc: { label: "Route 2 — Forêt Sombre", lv: [7, 10], table: [["vipoison", 25], ["psylune", 20], ["spectrio", 20], ["mousserond", 20], ["pioupiou", 15]] },
+    enc: { label: "Route 2 — Forêt Sombre", lv: [7, 10], table: [["vipoison", 20], ["psylune", 16], ["spectrio", 16], ["mousserond", 16], ["pioupiou", 12], ["louveran", 12], ["phantomite", 8]] },
     exits: [
       { x: 0, y: 9, to: "kaelis", tx: 38, ty: 16, dir: "left" },
       { x: 0, y: 10, to: "kaelis", tx: 38, ty: 17, dir: "left" },
@@ -677,7 +720,7 @@ const MAPS = {
       "T.....,,,....;;;.....,,,..........T",
       "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
     ],
-    enc: { label: "Route 3 — Prés du Lac", lv: [10, 14], table: [["lucioline", 25], ["bulleau", 25], ["psylune", 15], ["givrelin", 15], ["dracelet", 20]] },
+    enc: { label: "Route 3 — Prés du Lac", lv: [10, 14], table: [["lucioline", 22], ["bulleau", 22], ["psylune", 13], ["givrelin", 13], ["dracelet", 16], ["anguivolt", 9], ["glacidra", 5]] },
     exits: [
       { x: 0, y: 10, to: "verdicite", tx: 30, ty: 10, dir: "left" },
       { x: 0, y: 11, to: "verdicite", tx: 30, ty: 11, dir: "left" },
@@ -736,7 +779,7 @@ const MAPS = {
       "TwwwwbbwwwwwwwwwwwbbwwwwwwwwT",
       "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
     ],
-    enc: { label: "Cité Azur — Plage", lv: [12, 16], table: [["bulleau", 40], ["lucioline", 20], ["givrelin", 20], ["dracelet", 20]] },
+    enc: { label: "Cité Azur — Plage", lv: [12, 16], table: [["bulleau", 30], ["meduline", 25], ["lucioline", 15], ["givrelin", 15], ["dracelet", 15]] },
     exits: [
       { x: 0, y: 10, to: "route3", tx: 34, ty: 10, dir: "left" },
       { x: 0, y: 11, to: "route3", tx: 34, ty: 11, dir: "left" },
@@ -823,15 +866,15 @@ const ZONES = {
   },
   rocher: {
     label: "Crêtes Rocheuses", lv: [4, 8],
-    table: [["rocmite", 45], ["givrelin", 30], ["rongelec", 25]]
+    table: [["rocmite", 38], ["givrelin", 25], ["rongelec", 20], ["scorpide", 17]]
   },
   foret: {
     label: "Forêt Murmurante", lv: [5, 9],
-    table: [["vipoison", 30], ["psylune", 25], ["pioupiou", 25], ["spectrio", 20]]
+    table: [["vipoison", 26], ["psylune", 21], ["pioupiou", 21], ["spectrio", 17], ["louveran", 15]]
   },
   lac: {
     label: "Lac Azuré", lv: [4, 9],
-    table: [["bulleau", 45], ["mousserond", 22], ["lucioline", 23], ["dracelet", 10]]
+    table: [["bulleau", 38], ["mousserond", 20], ["lucioline", 19], ["anguivolt", 15], ["dracelet", 8]]
   }
 };
 function zoneAtKaelis(x, y) {
