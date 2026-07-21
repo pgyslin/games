@@ -47,7 +47,8 @@ const G = {
   fx: true,                // effets HD (profondeur de champ, étalonnage)
   view3d: true,            // vue "Paper 3D" (sol en perspective, sprites plats)
   fade: 0,
-  transition: false
+  transition: false,
+  weather: "clair"         // clair | soleil | pluie (extérieur)
 };
 let B = null;              // état du combat en cours
 let time = 0, lastT = 0;
@@ -391,6 +392,7 @@ function updateWorld(dt) {
   } else {
     h.phase *= .8;
   }
+  updateWorldFx(dt);
 }
 
 async function switchMap(to, tx, ty, dir) {
@@ -426,8 +428,16 @@ function onArrive() {
     updateHud(); saveGame();
     return;
   }
-  // rencontres
+  // éclaboussures au bord de l'eau (ponton ou case voisine d'eau)
   const t = tileAt(h.x, h.y);
+  const nearWater = t === "b" ||
+    tileAt(h.x + 1, h.y) === "w" || tileAt(h.x - 1, h.y) === "w" ||
+    tileAt(h.x, h.y + 1) === "w" || tileAt(h.x, h.y - 1) === "w";
+  if (nearWater && m.theme !== "interior") {
+    splashAt(h.x * TILE + TILE / 2, h.y * TILE + TILE - 4);
+    if (Math.random() < .5) SFX.splash();
+  }
+  // rencontres
   if (ENCOUNTER_TILES.has(t) && G.team.length > 0 && Math.random() < .13) {
     startBattle(encounterFor(m, h.x, h.y));
   }
@@ -532,7 +542,7 @@ function freshBattleState(enemy, zone) {
   return {
     enemy, zone,
     allyIdx: firstAlive(),
-    over: false, particles: [],
+    over: false, particles: [], fx: [],
     eAnim: { dx: 0, dy: 0, flash: 0, scale: 1, alpha: 1 },
     aAnim: { dx: 0, dy: 0, flash: 0, scale: 1, alpha: 1 },
     ball: null, choose: null,
@@ -550,7 +560,9 @@ async function startBattle(zone) {
   updateCards();
   eCard.style.display = "block";
   aCard.style.display = "block";
+  entryFlash(false);
   await say(`Un ${monName(wild)} sauvage apparaît ! (Nv. ${wild.level})`);
+  entryFlash(true);
   await say(`${monName(mine())}, en avant !`);
   hideDialog();
   battleLoop();
@@ -576,7 +588,9 @@ async function startTrainerBattle(npc) {
   eCard.style.display = "block";
   aCard.style.display = "block";
   await say(`${npc.name} veut se battre !`);
+  entryFlash(false);
   await say(`${npc.name} envoie ${monName(team[0])} ! (Nv. ${team[0].level})`);
+  entryFlash(true);
   await say(`${monName(mine())}, en avant !`);
   hideDialog();
   battleLoop();
@@ -701,6 +715,150 @@ function burst(x, y, color, n = 16, spd = 3) {
   }
 }
 
+// ---------- VFX de combat : particules typées, ondes, auras ----------
+const TYPE_FX = {
+  "Feu":      { shape: "flame",  colors: ["#ffb03c", "#f2662c", "#ffe08a"], g: -.06 },
+  "Eau":      { shape: "bubble", colors: ["#7fc9f0", "#bfe9ff"],            g: -.05 },
+  "Plante":   { shape: "leaf",   colors: ["#7bc95e", "#4d9e3a", "#a8e08a"], g: .05 },
+  "Électrik": { shape: "spark",  colors: ["#ffe23c", "#fff9c0"],            g: 0 },
+  "Glace":    { shape: "shard",  colors: ["#bfeaff", "#8fd4f0"],            g: .06 },
+  "Roche":    { shape: "rock",   colors: ["#a89478", "#8a7458"],            g: .16 },
+  "Vol":      { shape: "streak", colors: ["#e8efff", "#aebfe0"],            g: -.02 },
+  "Spectre":  { shape: "wisp",   colors: ["#9a86d8", "#6f5aa0"],            g: -.04 },
+  "Psy":      { shape: "wisp",   colors: ["#f08ab0", "#f06a8a"],            g: -.04 },
+  "Fée":      { shape: "star",   colors: ["#ffc9e8", "#fff0fa", "#ffd98a"], g: -.03 },
+  "Poison":   { shape: "drop",   colors: ["#b06ab0", "#8a4a9e"],            g: .09 },
+  "Dragon":   { shape: "flame",  colors: ["#8a7ae8", "#6a5ae0", "#c9bfff"], g: -.04 },
+  "Normal":   { shape: "circle", colors: ["#e8e2d0", "#c9c2b0"],            g: .06 }
+};
+function typedBurst(x, y, type, n = 18, spd = 3.4) {
+  const fx = TYPE_FX[type] || TYPE_FX.Normal;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = (Math.random() * .6 + .4) * spd;
+    B.particles.push({
+      x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.2,
+      life: .85 + Math.random() * .3, delay: 0,
+      color: fx.colors[i % fx.colors.length], r: 3 + Math.random() * 4.5,
+      shape: fx.shape, g: fx.g, rot: Math.random() * Math.PI * 2, vr: (Math.random() - .5) * .3
+    });
+  }
+}
+// traînée du projectile : particules échelonnées le long du trajet
+function typedTrail(x0, y0, x1, y1, type) {
+  const fx = TYPE_FX[type] || TYPE_FX.Normal;
+  const N = 16;
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    B.particles.push({
+      x: x0 + (x1 - x0) * t + (Math.random() - .5) * 14,
+      y: y0 + (y1 - y0) * t + (Math.random() - .5) * 14 - 40 * Math.sin(t * Math.PI),
+      vx: (Math.random() - .5) * .8, vy: (Math.random() - .5) * .8,
+      life: .55, delay: t * .28,
+      color: fx.colors[i % fx.colors.length], r: 2.5 + Math.random() * 3.5,
+      shape: fx.shape, g: (fx.g || 0) * .4, rot: Math.random() * Math.PI * 2, vr: (Math.random() - .5) * .2
+    });
+  }
+}
+// dessin d'une particule selon sa forme (partagé combat / monde)
+function drawFxParticle(c, p, scale = 1) {
+  const a = Math.max(0, Math.min(1, p.life));
+  const r = Math.max(.5, p.r * (0.4 + 0.6 * a) * scale);
+  c.globalAlpha = a;
+  const sh = p.shape || "circle";
+  if (sh === "flame" || sh === "wisp") {
+    c.globalCompositeOperation = "lighter";
+    const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2);
+    g.addColorStop(0, p.color);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    c.fillStyle = g;
+    c.beginPath(); c.arc(p.x, p.y, r * 2, 0, Math.PI * 2); c.fill();
+    c.globalCompositeOperation = "source-over";
+  } else if (sh === "bubble") {
+    c.strokeStyle = p.color; c.lineWidth = 1.6;
+    c.beginPath(); c.arc(p.x, p.y, r, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = "rgba(255,255,255,.7)";
+    c.beginPath(); c.arc(p.x - r * .35, p.y - r * .35, r * .25, 0, Math.PI * 2); c.fill();
+  } else if (sh === "leaf") {
+    c.save(); c.translate(p.x, p.y); c.rotate(p.rot || 0);
+    c.fillStyle = p.color;
+    c.beginPath(); c.ellipse(0, 0, r * 1.4, r * .6, 0, 0, Math.PI * 2); c.fill();
+    c.restore();
+  } else if (sh === "spark") {
+    c.globalCompositeOperation = "lighter";
+    c.strokeStyle = p.color; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(p.x - p.vx * 3, p.y - p.vy * 3); c.lineTo(p.x + p.vx * 2, p.y + p.vy * 2); c.stroke();
+    c.globalCompositeOperation = "source-over";
+  } else if (sh === "shard") {
+    c.save(); c.translate(p.x, p.y); c.rotate(p.rot || 0);
+    c.fillStyle = p.color;
+    c.beginPath(); c.moveTo(0, -r * 1.4); c.lineTo(r * .7, 0); c.lineTo(0, r * 1.4); c.lineTo(-r * .7, 0); c.closePath(); c.fill();
+    c.restore();
+  } else if (sh === "rock") {
+    c.save(); c.translate(p.x, p.y); c.rotate(p.rot || 0);
+    c.fillStyle = p.color;
+    c.fillRect(-r * .8, -r * .8, r * 1.6, r * 1.6);
+    c.restore();
+  } else if (sh === "streak") {
+    c.save(); c.translate(p.x, p.y); c.rotate(Math.atan2(p.vy, p.vx));
+    c.fillStyle = p.color;
+    c.beginPath(); c.ellipse(0, 0, r * 2.2, r * .5, 0, 0, Math.PI * 2); c.fill();
+    c.restore();
+  } else if (sh === "star") {
+    c.save(); c.translate(p.x, p.y); c.rotate(p.rot || 0);
+    c.fillStyle = p.color;
+    c.beginPath();
+    for (let k = 0; k < 8; k++) {
+      const rr = k % 2 === 0 ? r * 1.5 : r * .55;
+      const an = (k / 8) * Math.PI * 2;
+      c[k === 0 ? "moveTo" : "lineTo"](Math.cos(an) * rr, Math.sin(an) * rr);
+    }
+    c.closePath(); c.fill();
+    c.restore();
+  } else if (sh === "drop") {
+    c.fillStyle = p.color;
+    c.beginPath(); c.ellipse(p.x, p.y, r * .7, r * 1.2, 0, 0, Math.PI * 2); c.fill();
+  } else {
+    c.fillStyle = p.color;
+    c.beginPath(); c.arc(p.x, p.y, r, 0, Math.PI * 2); c.fill();
+  }
+  c.globalAlpha = 1;
+}
+
+// effets non particulaires (ondes de choc, auras, flashs d'entrée, étoiles)
+function pushFx(fx) { if (B) B.fx.push(fx); }
+function koShockwave(x, y) {
+  pushFx({ kind: "ring", x, y, t: 0, dur: .6, color: "255,255,255" });
+  pushFx({ kind: "ring", x, y, t: -.12, dur: .7, color: "255,200,110" });
+}
+function captureStars(x, y) {
+  for (let i = 0; i < 26; i++) {
+    B.particles.push({
+      x: x + (Math.random() - .5) * 30, y: y - 20 - Math.random() * 40,
+      vx: (Math.random() - .5) * 2.6, vy: -2 - Math.random() * 2.4,
+      life: 1.1, delay: Math.random() * .3,
+      color: ["#ffd98a", "#fff3b0", "#ffffff"][i % 3], r: 3 + Math.random() * 3.5,
+      shape: "star", g: .12, rot: Math.random() * Math.PI * 2, vr: (Math.random() - .5) * .4
+    });
+  }
+  pushFx({ kind: "ring", x, y: y - 30, t: 0, dur: .55, color: "255,217,138" });
+}
+function evolutionAura(x, y) {
+  pushFx({ kind: "aura", x, y, t: 0, dur: 2.2, color: "255,240,180" });
+  for (let i = 0; i < 22; i++) {
+    B.particles.push({
+      x: x + (Math.random() - .5) * 60, y: y - Math.random() * 30,
+      vx: (Math.random() - .5) * .6, vy: -1.4 - Math.random() * 1.8,
+      life: 1.3, delay: Math.random() * 1.2,
+      color: ["#ffe9b0", "#ffffff", "#8fd0ff"][i % 3], r: 2.5 + Math.random() * 3,
+      shape: "wisp", g: -.02, rot: 0, vr: 0
+    });
+  }
+}
+function entryFlash(allySide) {
+  pushFx({ kind: "sweep", dir: allySide ? 1 : -1, t: 0, dur: .45,
+    y: allySide ? H * .62 : H * .42, color: "255,255,255" });
+}
+
 // ---------- Résolution d'un tour ----------
 function enemyPickMove(e, target) {
   let best = null, bestScore = -1;
@@ -738,9 +896,13 @@ async function doMove(attacker, defender, mv, allyAttacks) {
     await say(`Ça n'affecte pas ${monName(defender)}...`);
     return;
   }
+  const sx = allyAttacks ? W * .3 : W * .72;
+  const sy = allyAttacks ? H * .62 : H * .42;
   const tx = allyAttacks ? W * .72 : W * .3;
   const ty = allyAttacks ? H * .42 : H * .62;
-  burst(tx, ty, TYPES[m.type].c, eff > 1 ? 26 : 16, eff > 1 ? 4.4 : 3);
+  typedTrail(sx, sy - 40, tx, ty - 30, m.type);
+  typedBurst(tx, ty - 20, m.type, eff > 1 ? 30 : 20, eff > 1 ? 4.6 : 3.2);
+  if (eff > 1) pushFx({ kind: "ring", x: tx, y: ty - 20, t: 0, dur: .45, color: "255,255,255" });
   defAnim.flash = 1;
   shake = eff > 1 ? 14 : 8;
   (eff > 1 ? SFX.superhit : eff < 1 ? SFX.weakhit : SFX.hit)();
@@ -777,7 +939,7 @@ async function gainXp(mon, amount) {
       const oldName = monName(mon);
       await say(`Hein ?! ${oldName} évolue !`);
       const anim = B ? B.aAnim : null;
-      if (anim) { await tween(anim, "flash", 0, 1, 500); }
+      if (anim) { evolutionAura(W * .3, H * .66); await tween(anim, "flash", 0, 1, 500); }
       mon.sp = evo.to;
       const old2 = mon.stats;
       mon.stats = calcStats(mon.sp, mon.level);
@@ -820,7 +982,7 @@ async function tryCapture(kind) {
   await wait(420);
   if (success) {
     SFX.catchOk();
-    burst(px, py, "#ffd98a", 24, 3.6);
+    captureStars(px, py);
     markCaught(e.sp);
     await say(`Et hop ! ${monName(e)} est capturé !`);
     if (G.team.length < 6) {
@@ -904,6 +1066,7 @@ async function battleLoop() {
     else if (act.type === "switch") {
       B.allyIdx = act.idx;
       updateCards();
+      entryFlash(true);
       await say(`${monName(mine())}, à toi de jouer !`);
     }
     else if (act.type === "move") {
@@ -929,6 +1092,7 @@ async function battleLoop() {
     // K.O. ennemi ?
     if (e.hp <= 0 && !B.over) {
       SFX.faint();
+      koShockwave(W * .72, H * .45);
       await tween(B.eAnim, "dy", 0, 60, 400);
       B.eAnim.alpha = 0;
       await say(`${monName(e)} ${B.trainer ? "ennemi" : "sauvage"} est K.O. !`);
@@ -941,6 +1105,7 @@ async function battleLoop() {
         markSeen(B.enemy.sp);
         B.eAnim.dx = 0; B.eAnim.dy = 0; B.eAnim.flash = 0; B.eAnim.scale = 1; B.eAnim.alpha = 1;
         updateCards();
+        entryFlash(false);
         await say(`${B.trainer.name} envoie ${monName(B.enemy)} ! (Nv. ${B.enemy.level})`);
         continue;
       }
@@ -954,6 +1119,7 @@ async function battleLoop() {
     }
     if (mine().hp <= 0 && !B.over) {
       SFX.faint();
+      koShockwave(W * .3, H * .66);
       await tween(B.aAnim, "dy", 0, 60, 400);
       await say(`${monName(mine())} est K.O. !`);
       if (firstAlive() >= 0) {
@@ -962,6 +1128,7 @@ async function battleLoop() {
         B.allyIdx = act2.idx;
         B.aAnim.dy = 0;
         updateCards();
+        entryFlash(true);
         await say(`${monName(mine())}, à toi de jouer !`);
       } else {
         await say("Tous vos Novamon sont K.O. ! Vous courez au centre de soins...");
@@ -1772,6 +1939,118 @@ function buildAmbient() {
 
 function dayFactor() { return (Math.cos(time * .008) + 1) / 2; } // démarre en plein jour (1)
 
+// ---------- Particules du monde (feuilles, poussière, éclaboussures) + météo ----------
+let WFX = [];
+let RAIN = [];
+let wfxLeafT = 0, wfxDustT = 0;
+let weatherT = 18 + Math.random() * 20;
+
+function updateWorldFx(dt) {
+  const map = CM();
+  const outdoor = map.theme !== "interior";
+  const h = G.hero;
+  // météo aléatoire (change toutes les 30-60 s)
+  weatherT -= dt;
+  if (weatherT <= 0) {
+    weatherT = 30 + Math.random() * 30;
+    const r = Math.random();
+    const prev = G.weather;
+    G.weather = r < .45 ? "clair" : r < .75 ? "soleil" : "pluie";
+    if (outdoor && G.weather !== prev && G.mode === "world") {
+      if (G.weather === "pluie") toast("Il commence à pleuvoir…");
+      else if (G.weather === "soleil" && prev === "pluie") toast("Le soleil revient !");
+    }
+  }
+  // feuilles qui tombent (forêts)
+  const forest = outdoor && (map.id === "route2" || (map.id === "kaelis" && h.x >= 26));
+  if (forest) {
+    wfxLeafT -= dt;
+    if (wfxLeafT <= 0) {
+      wfxLeafT = .22 + Math.random() * .3;
+      WFX.push({
+        kind: "leaf",
+        x: (h.px + (Math.random() * 18 - 9)) * TILE,
+        y: (h.py - 8 - Math.random() * 3) * TILE,
+        vx: 8 + Math.random() * 14, vy: 24 + Math.random() * 16,
+        life: 7, ph: Math.random() * 6.28, r: 2.6 + Math.random() * 1.8,
+        color: ["#7bc95e", "#4d9e3a", "#c9a23c", "#a8c95e"][Math.floor(Math.random() * 4)]
+      });
+    }
+  }
+  // poussière de pas en courant
+  if (h.moving && keys.shift) {
+    wfxDustT -= dt;
+    if (wfxDustT <= 0) {
+      wfxDustT = .085;
+      WFX.push({
+        kind: "dust",
+        x: h.px * TILE + TILE / 2 + (Math.random() - .5) * 10,
+        y: h.py * TILE + TILE - 3,
+        vx: (Math.random() - .5) * 10, vy: -14 - Math.random() * 10,
+        life: .55, ph: 0, r: 2.6 + Math.random() * 2.2, color: "#cbb894"
+      });
+    }
+  }
+  // mise à jour
+  for (let i = WFX.length - 1; i >= 0; i--) {
+    const p = WFX[i];
+    p.life -= dt;
+    if (p.life <= 0) { WFX.splice(i, 1); continue; }
+    if (p.kind === "leaf") {
+      p.ph += dt * 3;
+      p.x += (p.vx + Math.sin(p.ph) * 22) * dt;
+      p.y += p.vy * dt;
+      // la feuille se pose au sol puis s'efface
+      if (p.y > (G.hero.py + 8) * TILE) p.life = Math.min(p.life, .8);
+    } else if (p.kind === "dust") {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy *= .9;
+    } else if (p.kind === "splash") {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt;
+    }
+  }
+  if (WFX.length > 160) WFX.splice(0, WFX.length - 160);
+}
+
+// dessine les particules du monde — mapWorld(x, y) -> {sx, sy, s} ou null
+function drawWorldFx(c, mapWorld) {
+  for (const p of WFX) {
+    const pos = mapWorld(p.x, p.y);
+    if (!pos) continue;
+    const a = p.kind === "leaf" ? Math.min(1, p.life) : Math.min(1, p.life * 2);
+    c.globalAlpha = Math.max(0, a * .9);
+    if (p.kind === "leaf") {
+      c.save();
+      c.translate(pos.sx, pos.sy);
+      c.rotate(p.ph * .8);
+      c.fillStyle = p.color;
+      c.beginPath(); c.ellipse(0, 0, p.r * 1.5 * pos.s, p.r * .62 * pos.s, 0, 0, Math.PI * 2); c.fill();
+      c.restore();
+    } else if (p.kind === "dust") {
+      const g = c.createRadialGradient(pos.sx, pos.sy, 0, pos.sx, pos.sy, p.r * 2.4 * pos.s);
+      g.addColorStop(0, p.color);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      c.fillStyle = g;
+      c.beginPath(); c.arc(pos.sx, pos.sy, p.r * 2.4 * pos.s, 0, Math.PI * 2); c.fill();
+    } else if (p.kind === "splash") {
+      c.fillStyle = p.color;
+      c.beginPath(); c.ellipse(pos.sx, pos.sy, p.r * .7 * pos.s, p.r * 1.1 * pos.s, 0, 0, Math.PI * 2); c.fill();
+    }
+  }
+  c.globalAlpha = 1;
+}
+
+function splashAt(wx, wy) {
+  for (let i = 0; i < 7; i++) {
+    WFX.push({
+      kind: "splash",
+      x: wx + (Math.random() - .5) * 14, y: wy - 2,
+      vx: (Math.random() - .5) * 60, vy: -60 - Math.random() * 70,
+      life: .5, ph: 0, r: 1.6 + Math.random() * 1.6,
+      color: "rgba(210,235,255,.85)"
+    });
+  }
+}
+
 function renderWorld() {
   if (G.view3d) renderWorld3D();
   else renderWorld2D();
@@ -1880,6 +2159,9 @@ function renderWorld2D() {
     }
   }
 
+  // particules du monde (feuilles, poussière, éclaboussures)
+  drawWorldFx(w, (x, y) => ({ sx: x, sy: y, s: 1 }));
+
   // lucioles / pollen lumineux (additif)
   w.globalCompositeOperation = "lighter";
   for (const f of ambient) {
@@ -1976,6 +2258,46 @@ function composePost(map, day, night) {
     ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = `rgba(255,160,60,${Math.max(0, (day - .7)) * .18})`;
     ctx.fillRect(0, 0, W, H);
+
+    // ---- météo ----
+    if (G.weather === "soleil") {
+      // halo de beau temps : lumière dorée pulsante
+      ctx.globalCompositeOperation = "screen";
+      const sg = ctx.createRadialGradient(W * .75, H * .1, 20, W * .75, H * .1, H * .9);
+      const al = .10 + Math.sin(time * .9) * .03;
+      sg.addColorStop(0, `rgba(255,235,170,${al * 2.2})`);
+      sg.addColorStop(1, "rgba(255,235,170,0)");
+      ctx.fillStyle = sg;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "source-over";
+    } else if (G.weather === "pluie") {
+      // voile gris-bleu + traits de pluie (espace écran)
+      ctx.fillStyle = "rgba(40,55,80,.16)";
+      ctx.fillRect(0, 0, W, H);
+      if (RAIN.length === 0) {
+        for (let i = 0; i < 90; i++) {
+          RAIN.push({ x: Math.random() * (W + 100) - 50, y: Math.random() * H, spd: 620 + Math.random() * 300, len: 10 + Math.random() * 10 });
+        }
+      }
+      ctx.strokeStyle = "rgba(190,215,245,.4)";
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      for (const d of RAIN) {
+        d.y += d.spd * .016; d.x += d.spd * .003;
+        if (d.y > H + 10) { d.y = -20 - Math.random() * 40; d.x = Math.random() * (W + 100) - 50; }
+        ctx.moveTo(d.x, d.y);
+        ctx.lineTo(d.x - d.len * .22, d.y - d.len);
+      }
+      ctx.stroke();
+      // halos brumeux au sol
+      ctx.globalCompositeOperation = "screen";
+      const rg = ctx.createLinearGradient(0, H * .6, 0, H);
+      rg.addColorStop(0, "rgba(120,150,190,0)");
+      rg.addColorStop(1, `rgba(120,150,190,${.10 + Math.sin(time * 1.6) * .03})`);
+      ctx.fillStyle = rg;
+      ctx.fillRect(0, H * .6, W, H * .4);
+      ctx.globalCompositeOperation = "source-over";
+    }
   }
 }
 
@@ -2123,6 +2445,14 @@ function renderWorld3D() {
     if (sx < -120 || sx > W + 120) return null;
     return { sx, sy: horizonY + C / zb, s };
   };
+
+  // particules du monde (feuilles, poussière, éclaboussures) projetées
+  drawWorldFx(w, (x, y) => {
+    const p = proj(x, y + 10);
+    if (!p) return null;
+    // hauteur au-dessus du sol : différence entre y monde et le point projeté au sol
+    return { sx: p.sx, sy: p.sy - 22 * p.s, s: Math.min(2.2, p.s * 1.15) };
+  });
   w.globalCompositeOperation = "lighter";
   for (const o of R.objects) {
     let hgt = 0, str = 0;
@@ -2265,16 +2595,55 @@ function renderBattle() {
   }
   if (B.ball && B.ball.vis) drawBall(ctx, B.ball.x, B.ball.y, B.ball.r, "ball", B.ball.rot);
 
-  // particules
+  // particules (formes selon le type d'attaque)
   for (let i = B.particles.length - 1; i >= 0; i--) {
     const p = B.particles[i];
-    p.x += p.vx; p.y += p.vy; p.vy += .12; p.life -= .025;
+    if (p.delay && p.delay > 0) { p.delay -= .016; continue; }
+    p.x += p.vx; p.y += p.vy;
+    p.vy += (p.g !== undefined ? p.g : .12);
+    if (p.vr) p.rot += p.vr;
+    p.life -= .025;
     if (p.life <= 0) { B.particles.splice(i, 1); continue; }
-    ctx.globalAlpha = p.life;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
-    ctx.fill();
+    drawFxParticle(ctx, p);
+  }
+  ctx.globalAlpha = 1;
+  // effets : ondes de choc, auras, flashs d'entrée
+  for (let i = B.fx.length - 1; i >= 0; i--) {
+    const f = B.fx[i];
+    f.t += .016;
+    if (f.t < 0) continue;
+    const k = Math.min(1, f.t / f.dur);
+    if (k >= 1) { B.fx.splice(i, 1); continue; }
+    if (f.kind === "ring") {
+      const r = 14 + k * 130;
+      ctx.globalAlpha = (1 - k) * .8;
+      ctx.lineWidth = 5 * (1 - k) + 1;
+      ctx.strokeStyle = `rgba(${f.color},1)`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.stroke();
+    } else if (f.kind === "aura") {
+      const pulse = .8 + Math.sin(f.t * 14) * .2;
+      const rr = 90 * pulse * (k < .15 ? k / .15 : 1);
+      const g2 = ctx.createRadialGradient(f.x, f.y - 40, 4, f.x, f.y - 40, rr);
+      g2.addColorStop(0, `rgba(${f.color},${.55 * (1 - k * .5)})`);
+      g2.addColorStop(1, `rgba(${f.color},0)`);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = g2;
+      ctx.beginPath(); ctx.arc(f.x, f.y - 40, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+    } else if (f.kind === "sweep") {
+      // flash directionnel : bande lumineuse qui traverse la plateforme
+      const x0 = f.dir > 0 ? -W * .2 + k * W * .9 : W * 1.2 - k * W * .9;
+      const grad = ctx.createLinearGradient(x0 - 120, 0, x0 + 120, 0);
+      grad.addColorStop(0, `rgba(${f.color},0)`);
+      grad.addColorStop(.5, `rgba(${f.color},${.34 * (1 - k)})`);
+      grad.addColorStop(1, `rgba(${f.color},0)`);
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = grad;
+      ctx.fillRect(x0 - 120, f.y - 130, 240, 190);
+      ctx.globalCompositeOperation = "source-over";
+    }
   }
   ctx.globalAlpha = 1;
   ctx.restore();
