@@ -188,6 +188,7 @@ const MUSIC_FILE = {
 function musicForMap(mapId) {
   const m = MAPS[mapId];
   if (!m) return "music_explore";
+  if (mapId.startsWith("home_")) return "music_town"; // maisons : ambiance de ville
   if (m.theme === "interior") return "music_gym";     // arènes (intérieurs)
   if (m.theme === "city") return "music_town";        // villes
   if (mapId === "route2") return "music_forest";      // forêt sombre
@@ -478,6 +479,13 @@ function interact() {
   }
   const t = tileAt(tx, ty);
   if (t === "H") { useHealCenter(); return; }
+  if (t === "h") {
+    // entrer dans une maison si elle a un intérieur associé
+    const d = (CM().doors || []).find(dr => dr.x === tx && dr.y === ty);
+    if (d) { switchMap(d.to, d.tx, d.ty, "up"); return; }
+    runDialog(["Une maison de la région. Sa porte est close pour l'instant."], "");
+    return;
+  }
   if (t === "L") { runDialog(["Le laboratoire du Professeur Aralia. Ça sent la fougère et le café."], "Laboratoire"); return; }
   if (t === "G") { runDialog(["L'arène de la ville. L'entrée est la porte centrale."], "Arène"); return; }
   if (t === "F") { runDialog(["L'eau de la fontaine est d'une clarté étonnante."], "Fontaine"); return; }
@@ -1773,6 +1781,11 @@ function getRender(mapId) {
       } else if (t === ";") {
         const img = tArt("sprout");
         if (img) tDraw(img, px, py);
+      } else if (t === "R") {
+        // tapis d'intérieur (décor au sol, par-dessus le parquet)
+        const img = artOk(ART.obj.furn_rug) ? ART.obj.furn_rug : null;
+        if (img) { m.imageSmoothingEnabled = false; m.drawImage(img, px, py, TILE, TILE); }
+        else { m.fillStyle = "#8a5a3a"; m.fillRect(px + 3, py + 3, TILE - 6, TILE - 6); }
       }
     }
   }
@@ -2009,6 +2022,25 @@ function getRender(mapId) {
     }
   }
 
+  // --- mobilier d'intérieur (billboards, dessinés en 2D et recensés en 3D) ---
+  if (interior) {
+    for (let y = 0; y < map.h; y++) {
+      for (let x = 0; x < map.w; x++) {
+        const t = map.grid[y][x];
+        const kind = (t !== "R") ? FURN_KIND[t] : null;   // le tapis 'R' est au sol
+        if (!kind) continue;
+        const img = oArt(kind);
+        const px = x * TILE + TILE / 2, py = y * TILE + TILE;
+        const tall = kind === "furn_bed";
+        if (img) {
+          castShadow(px, py - 2, tall ? 12 : 10, 4);
+          oDraw(img, px, py + 2, tall ? 26 : 28, tall ? 52 : 28);
+        }
+        R.objects.push({ wx: px, wy: py, kind, v: hash2(x, y) });
+      }
+    }
+  }
+
   // recensement des décors comme "billboards" pour la vue Paper 3D
   const OBJ_KIND = { "T": "tree", "r": "rock", ";": "tuft", "!": "lamp", "%": "pot", "#": "wall", "F": "fountain", "h": "house", "H": "heal", "L": "lab", "G": "gymG" };
   for (let y = 0; y < map.h; y++) {
@@ -2039,7 +2071,7 @@ function objArtFor(kind, v) {
   }[kind];
   if (kind === "tuft") return artOk(ART.tiles.sprout) ? ART.tiles.sprout : null;
   if (kind === "wall") return artOk(ART.tiles.wallstone) ? ART.tiles.wallstone : null;
-  if (kind.startsWith("prop_")) return artOk(ART.obj[kind]) ? ART.obj[kind] : null;
+  if (kind.startsWith("prop_") || kind.startsWith("furn_")) return artOk(ART.obj[kind]) ? ART.obj[kind] : null;
   if (!pick) return null;
   return artOk(ART.obj[pick]) ? ART.obj[pick] : null;
 }
@@ -2055,7 +2087,7 @@ function objSprite(kind, v = 0) {
       rock: 28, tuft: 26, lamp: 40, pot: 28, wall: 32,
       house: 50, heal: 50, lab: 50, gymG: 50, gymD: 50
     };
-    const lh = HDIM[kind] || (kind.startsWith("prop_") ? 22 : 32);
+    const lh = HDIM[kind] || (kind.startsWith("prop_") ? 22 : kind === "furn_bed" ? 46 : kind.startsWith("furn_") ? 26 : 32);
     const lw = Math.round(lh * (img.naturalWidth / img.naturalHeight));
     const SS = 3;
     const c = document.createElement("canvas");

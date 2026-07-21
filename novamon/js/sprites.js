@@ -37,7 +37,9 @@ for (const n of ["grass0", "grass1", "flowers", "flowers2", "sprout", "path0", "
 for (const n of ["tree0", "tree1", "tree2", "tree3", "bush0", "bush1", "rock", "sign",
   "lamp", "pot", "house", "heal", "lab", "gym", "gymdoor",
   "prop_mushroom", "prop_grass", "prop_flowerb", "prop_flowero", "prop_flowerp",
-  "prop_cactus", "prop_berry", "prop_lilypad", "prop_stump"]) {
+  "prop_cactus", "prop_berry", "prop_lilypad", "prop_stump",
+  "furn_bed", "furn_table", "furn_chair", "furn_shelf", "furn_fireplace",
+  "furn_barrel", "furn_rug", "furn_lamp"]) {
   ART.obj[n] = loadArt("obj/" + n + ".png");
 }
 for (const d of ["down", "up", "left", "right"]) {

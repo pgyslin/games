@@ -337,9 +337,15 @@ const BADGES = {
 // s sable   r rocher   b ponton   h maison   H centre de soins   L labo
 // G mur d'arène   D porte d'arène   ! lampadaire   F fontaine
 // # mur intérieur   c tapis d'arène   % pot de plante (décor intérieur)
+// Mobilier d'intérieur : B lit   A table   C chaise   S étagère
+//   K cheminée   N tonneau   V bougeoir   R tapis (décor au sol, franchissable)
 
-const SOLID_TILES = new Set(["T", "w", "r", "h", "H", "L", "G", "!", "F", "#", "%"]);
+const SOLID_TILES = new Set(["T", "w", "r", "h", "H", "L", "G", "!", "F", "#", "%",
+  "B", "A", "C", "S", "K", "N", "V"]);
 const ENCOUNTER_TILES = new Set([";", "s"]);
+// Mobilier d'intérieur -> sprite d'asset (billboard/décor)
+const FURN_KIND = { B: "furn_bed", A: "furn_table", C: "furn_chair", S: "furn_shelf",
+  K: "furn_fireplace", N: "furn_barrel", V: "furn_lamp", R: "furn_rug" };
 
 const MAPS = {
 
@@ -386,6 +392,10 @@ const MAPS = {
       { x: 21, y: 0, to: "route1", tx: 15, ty: 28, dir: "up" },
       { x: 39, y: 16, to: "route2", tx: 1, ty: 9, dir: "right" },
       { x: 39, y: 17, to: "route2", tx: 1, ty: 10, dir: "right" }
+    ],
+    doors: [
+      { x: 10, y: 22, to: "home_kaelis1", tx: 6, ty: 6 },
+      { x: 14, y: 22, to: "home_kaelis2", tx: 6, ty: 6 }
     ],
     npcs: [
       {
@@ -529,6 +539,9 @@ const MAPS = {
       { x: 15, y: 2, to: "gym1", tx: 7, ty: 11, dir: "up" },
       { x: 31, y: 10, to: "route3", tx: 1, ty: 10, dir: "right" },
       { x: 31, y: 11, to: "route3", tx: 1, ty: 11, dir: "right" }
+    ],
+    doors: [
+      { x: 4, y: 2, to: "home_verdicite1", tx: 6, ty: 6 }
     ],
     npcs: [
       {
@@ -884,6 +897,92 @@ const MAPS = {
       }
     ],
     pickups: []
+  },
+
+  // ---------- Intérieurs de maisons (visitables) ----------
+  home_kaelis1: {
+    label: "Maison — Kaelis", theme: "interior",
+    rows: [
+      "##############",
+      "#K..SS....S..#",
+      "#............#",
+      "#B...A.....%.#",
+      "#....C.......#",
+      "#R.........N.#",
+      "#R...........#",
+      "#.....DD.....#",
+      "##############"
+    ],
+    exits: [
+      { x: 6, y: 7, to: "kaelis", tx: 10, ty: 23, dir: "down" },
+      { x: 7, y: 7, to: "kaelis", tx: 10, ty: 23, dir: "down" }
+    ],
+    npcs: [
+      {
+        x: 8, y: 4, kind: "villager", name: "Mémé Ortie",
+        lines: ["Entre donc te réchauffer, jeune dresseur. Le feu de bois chasse la fatigue des routes.",
+          "Autrefois, Kaelis n'était qu'une clairière. Ce sont les premiers Novamon qui, dit-on, l'ont choisie pour y vivre en paix avec les humains.",
+          "Ma grand-mère racontait qu'une Gemme d'Harmonie dormait sous la région, et que sa lueur apaisait les cœurs sauvages…"]
+      }
+    ],
+    pickups: [{ id: "h_k1", x: 9, y: 5, item: "potion", n: 2 }]
+  },
+
+  home_kaelis2: {
+    label: "Maison du pêcheur — Kaelis", theme: "interior",
+    rows: [
+      "##############",
+      "#SS........SS#",
+      "#............#",
+      "#.N.A......B.#",
+      "#...C........#",
+      "#R.........%.#",
+      "#R...........#",
+      "#.....DD.....#",
+      "##############"
+    ],
+    exits: [
+      { x: 6, y: 7, to: "kaelis", tx: 14, ty: 23, dir: "down" },
+      { x: 7, y: 7, to: "kaelis", tx: 14, ty: 23, dir: "down" }
+    ],
+    npcs: [
+      {
+        x: 8, y: 4, kind: "villager", name: "Vieux Elouan",
+        lines: ["Ah, le Lac Azuré… j'y ai passé ma vie, la ligne à l'eau.",
+          "Un soir de tempête, j'ai vu se dresser une silhouette immense au-dessus des flots. Un dragon des glaces, j'en jurerais.",
+          "Les anciens l'appelaient le Gardien du Lac. On dit qu'il ne se montre qu'à ceux dont le cœur est pur… ou téméraire."]
+      }
+    ],
+    pickups: [{ id: "h_k2", x: 2, y: 5, item: "superball", n: 1 }]
+  },
+
+  home_verdicite1: {
+    label: "Maison de l'archiviste — Verdicité", theme: "interior",
+    rows: [
+      "##############",
+      "#SS..SS...SS.#",
+      "#............#",
+      "#.A..A.....B.#",
+      "#.C..C.......#",
+      "#R.........%.#",
+      "#R..K......N.#",
+      "#.....DD.....#",
+      "##############"
+    ],
+    exits: [
+      { x: 6, y: 7, to: "verdicite", tx: 4, ty: 3, dir: "down" },
+      { x: 7, y: 7, to: "verdicite", tx: 4, ty: 3, dir: "down" }
+    ],
+    npcs: [
+      {
+        x: 8, y: 3, kind: "prof", name: "Archiviste Photimien",
+        lines: ["Bienvenue dans mes archives ! J'y consigne toute l'histoire des Novamon de Kaelis.",
+          "Savais-tu que les types des Novamon reflètent les humeurs de la région : le Feu des crêtes, l'Eau des lacs, la Plante des forêts…",
+          "La légende parle de la Gemme d'Harmonie, brisée en trois éclats confiés aux trois cités. Chaque chef d'arène en garderait un fragment, scellé dans un badge.",
+          "Réunis les trois badges, et peut-être perceras-tu le secret de Kaelis."]
+      }
+    ],
+    pickups: [{ id: "h_v1", x: 8, y: 6, item: "superpotion", n: 1 }]
   }
 };
 
