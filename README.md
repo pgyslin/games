@@ -6,7 +6,7 @@ Collection personnelle de jeux et de sites web.
 
 | Jeu | Genre | Description | Lien |
 |---|---|---|---|
-| **Novamon** | RPG « Paper 3D » / HD-2D | RPG de capture de créatures : 19 fakemons, 9 cartes (routes, villes), 3 arènes et badges, dresseurs, évolutions, Novadex. Vue Paper Mario (sol 3D en perspective, personnages en papier 2D) + effets HD (profondeur de champ, éclairage). | [`novamon/`](novamon/) — ouvrir `index.html` |
+| **Novamon** | RPG « Paper 3D » / HD-2D | RPG de capture de créatures : 25 fakemons, 9 cartes (routes, villes), 3 arènes et badges, dresseurs, évolutions, Novadex. Assets CC0 (Kenney, Dungeon Crawl), sons et musiques, météo, VFX typés, vue Paper Mario (sol 3D en perspective, personnages en papier 2D) + post-traitement WebGL (bloom, profondeur de champ, grain) avec repli canvas. | [`novamon/`](novamon/) — ouvrir `index.html` |
 | **Voxarion** | — | _À compléter._ | _À ajouter_ |
 | **Stellar Drift** | — | _À compléter._ | _À ajouter_ |
 
